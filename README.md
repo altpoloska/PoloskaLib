@@ -21,30 +21,26 @@ A minimal UI library for Roblox written in Lua. It creates a draggable window wi
 - the library first attempts to place the interface in `CoreGui`, then falls back to `PlayerGui`;
 - clipboard copying and local image loading require the corresponding functions to be available in the environment.
 
-## Installation
+### Using a Library
 
-### Using a ModuleScript
-
-1. Create a `ModuleScript` named `PoloskaLib`.
-2. Paste the contents of `PoloskaLib.lua` into it.
-3. Require the module from a client script:
+1. get library with loadstring(game:HttpGet("raw_github_link"))() 
 
 ```lua
-local PoloskaLib = require(path.to.PoloskaLib)
+local PoloskaLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/altpoloska/PoloskaLib/refs/heads/main/PoloskaLib.lua"))()
 ```
 
 Example with the module stored in `ReplicatedStorage`:
 
 ```lua
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local PoloskaLib = require(ReplicatedStorage:WaitForChild("PoloskaLib"))
+local PoloskaLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/altpoloska/PoloskaLib/refs/heads/main/PoloskaLib.lua"))()
 ```
 
 ## Quick Start
 
 ```lua
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local PoloskaLib = require(ReplicatedStorage:WaitForChild("PoloskaLib"))
+local PoloskaLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/altpoloska/PoloskaLib/refs/heads/main/PoloskaLib.lua"))()
 
 local window = PoloskaLib:Create({
     Name = "Control Panel",
@@ -408,7 +404,7 @@ The close button in the main window uses this dialog. Confirming the close actio
 
 ```lua
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local PoloskaLib = require(ReplicatedStorage:WaitForChild("PoloskaLib"))
+local PoloskaLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/altpoloska/PoloskaLib/refs/heads/main/PoloskaLib.lua"))()
 
 local window = PoloskaLib:Create({
     Name = "PoloskaLib Demo",
