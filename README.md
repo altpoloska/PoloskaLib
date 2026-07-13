@@ -23,7 +23,7 @@ A minimal UI library for Roblox written in Lua. It creates a draggable window wi
 
 ### Using a Library
 
-1. get library with loadstring(game:HttpGet("raw_github_link"))() 
+Get library with loadstring(game:HttpGet("raw_github_link"))() 
 
 ```lua
 local PoloskaLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/altpoloska/PoloskaLib/refs/heads/main/PoloskaLib.lua"))()
