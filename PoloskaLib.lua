@@ -13,7 +13,7 @@ local RunService       = game:GetService("RunService")
 local CoreGui          = game:GetService("CoreGui")
 local Players          = game:GetService("Players")
 
-local Library = {}
+local Library = { Version = "floating-dropdown-1" }
 Library.__index = Library
 
 --// THEME
@@ -1021,7 +1021,7 @@ function Library:Tab(config)
         popup.CanvasSize = UDim2.new(0, 0, 0, 0)
         popup.AutomaticCanvasSize = Enum.AutomaticSize.Y
         popup.ZIndex = 100
-        popup.Parent = win.Gui
+        popup.Parent = win.Main
         corner(popup, 8)
         stroke(popup, Theme.Stroke, 1)
         padding(popup, 6)
@@ -1084,9 +1084,11 @@ function Library:Tab(config)
             -- of the trigger button.
             local height = math.min(196, (#items * 34) + 12)
             popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X), height)
+            -- f.AbsolutePosition is screen-relative. Convert it to the local
+            -- coordinate system of the draggable main window / portal parent.
             popup.Position = UDim2.fromOffset(
-                f.AbsolutePosition.X,
-                f.AbsolutePosition.Y + 52
+                f.AbsolutePosition.X - win.Main.AbsolutePosition.X,
+                f.AbsolutePosition.Y - win.Main.AbsolutePosition.Y + f.AbsoluteSize.Y + 8
             )
             popup.Visible = true
             open = true
