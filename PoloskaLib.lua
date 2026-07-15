@@ -580,7 +580,7 @@ function Library:Tab(config)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     layout.Parent = page
 
-    tab.Button = btn
+    tab.TabButton = btn
     tab.Page = page
     tab._popups = {}
 
@@ -596,10 +596,10 @@ function Library:Tab(config)
                     if alive(popup) then popup.Visible = false end
                 end
             end
-            if t.Button then
-                t.Button.BackgroundTransparency = 1
-                t.Button.BackgroundColor3 = Theme.Element
-                t.Button.TextColor3 = Theme.SubText
+            if t.TabButton then
+                t.TabButton.BackgroundTransparency = 1
+                t.TabButton.BackgroundColor3 = Theme.Element
+                t.TabButton.TextColor3 = Theme.SubText
             end
         end
         page.Visible = true
