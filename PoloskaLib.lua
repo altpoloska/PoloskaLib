@@ -1001,13 +1001,14 @@ function Library:Tab(config)
         arrow.TextColor3 = Theme.SubText
         arrow.Font = Enum.Font.GothamBold
         arrow.TextSize = 12
-        arrow.ZIndex = 2
+        arrow.ZIndex = 103
         arrow.Parent = f
 
         local trigger = Instance.new("TextButton")
         trigger.Size = UDim2.new(1, 0, 1, 0)
         trigger.BackgroundTransparency = 1
         trigger.Text = ""
+        trigger.ZIndex = 102
         trigger.Parent = f
 
         local popup = Instance.new("ScrollingFrame")
@@ -1077,22 +1078,19 @@ function Library:Tab(config)
             for _, other in ipairs(tab._popups) do
                 if other ~= popup and alive(other) then other.Visible = false end
             end
-            -- Wait one layout frame so AbsolutePosition/AbsoluteSize are final
-            -- inside automatic-size cards before anchoring the screen overlay.
-            task.defer(function()
-                if not alive(f) or not alive(popup) then return end
-                RunService.Heartbeat:Wait()
-                if not alive(f) or not alive(popup) then return end
-                local height = math.min(196, (#items * 34) + 12)
-                popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X), height)
-                popup.Position = UDim2.fromOffset(
-                    f.AbsolutePosition.X,
-                    f.AbsolutePosition.Y + f.AbsoluteSize.Y + 8
-                )
-                popup.Visible = true
-                open = true
-                arrow.Rotation = 180
-            end)
+            -- Dropdown rows have a fixed 44px height. Anchor with that fixed
+            -- height instead of an automatic-layout AbsoluteSize, which can be
+            -- reported as zero for one frame and place the first option on top
+            -- of the trigger button.
+            local height = math.min(196, (#items * 34) + 12)
+            popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X), height)
+            popup.Position = UDim2.fromOffset(
+                f.AbsolutePosition.X,
+                f.AbsolutePosition.Y + 52
+            )
+            popup.Visible = true
+            open = true
+            arrow.Rotation = 180
         end
 
         trigger.MouseButton1Click:Connect(function()
