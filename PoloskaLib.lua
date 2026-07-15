@@ -581,16 +581,30 @@ function Library:Tab(config)
 
     tab.Button = btn
     tab.Page = page
+    tab._popups = {}
 
     local function activate()
         for _, t in pairs(self.Tabs) do
             if t.Page then t.Page.Visible = false end
+            if t._popups then
+                for _, popup in ipairs(t._popups) do
+                    if alive(popup) then popup.Visible = false end
+                end
+            end
             if t.Button then
-                tween(t.Button, .15, {BackgroundTransparency = 1, TextColor3 = Theme.SubText})
+                tween(t.Button, .15, {
+                    BackgroundTransparency = 1,
+                    BackgroundColor3 = Theme.Element,
+                    TextColor3 = Theme.SubText,
+                })
             end
         end
         page.Visible = true
-        tween(btn, .15, {BackgroundTransparency = 0, BackgroundColor3 = Theme.Element, TextColor3 = Theme.Text})
+        tween(btn, .15, {
+            BackgroundTransparency = 0,
+            BackgroundColor3 = Theme.ElementHover,
+            TextColor3 = Theme.Text,
+        })
     end
 
     btn.MouseButton1Click:Connect(activate)
@@ -762,16 +776,18 @@ function Library:Tab(config)
     function tab:Toggle(cfg)
         cfg = cfg or {}
         local state = cfg.StartingState or false
-        local f = baseElement(40)
+        local f = baseElement(48)
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -60, 1, 0)
-        label.Position = UDim2.new(0, 14, 0, 0)
+        label.Size = UDim2.new(1, -82, 1, -8)
+        label.Position = UDim2.new(0, 14, 0, 4)
         label.BackgroundTransparency = 1
         label.Text = cfg.Name or "Toggle"
         label.TextColor3 = Theme.Text
         label.Font = Enum.Font.GothamMedium
-        label.TextSize = 14
+        label.TextSize = 13
+        label.TextWrapped = true
+        label.TextYAlignment = Enum.TextYAlignment.Center
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = f
 
@@ -931,104 +947,142 @@ function Library:Tab(config)
         return f
     end
 
-    --// DROPDOWN
+    --// DROPDOWN (overlay popup: it never resizes the page/card)
     function tab:Dropdown(cfg)
         cfg = cfg or {}
         local items = cfg.Items or {}
         local open = false
-        local f = baseElement(40)
-        f.ClipsDescendants = true
+        local f = baseElement(44)
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -40, 0, 40)
+        label.Size = UDim2.new(1, -190, 1, 0)
         label.Position = UDim2.new(0, 14, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = cfg.Name or "Dropdown"
         label.TextColor3 = Theme.Text
         label.Font = Enum.Font.GothamMedium
-        label.TextSize = 14
+        label.TextSize = 13
+        label.TextTruncate = Enum.TextTruncate.AtEnd
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = f
 
         local selected = Instance.new("TextLabel")
-        selected.Size = UDim2.new(0, 140, 0, 40)
-        selected.Position = UDim2.new(1, -156, 0, 0)
+        selected.Size = UDim2.new(0, 150, 1, 0)
+        selected.Position = UDim2.new(1, -176, 0, 0)
         selected.BackgroundTransparency = 1
         selected.Text = cfg.StartingText or "Select..."
         selected.TextColor3 = Theme.SubText
         selected.Font = Enum.Font.Gotham
         selected.TextSize = 13
+        selected.TextTruncate = Enum.TextTruncate.AtEnd
         selected.TextXAlignment = Enum.TextXAlignment.Right
         selected.Parent = f
 
         local arrow = Instance.new("TextLabel")
-        arrow.Size = UDim2.fromOffset(20, 40)
-        arrow.Position = UDim2.new(1, -20, 0, 0)
+        arrow.Size = UDim2.fromOffset(20, 44)
+        arrow.Position = UDim2.new(1, -26, 0, 0)
         arrow.BackgroundTransparency = 1
         arrow.Text = "▾"
         arrow.TextColor3 = Theme.SubText
         arrow.Font = Enum.Font.GothamBold
         arrow.TextSize = 12
+        arrow.ZIndex = 2
         arrow.Parent = f
 
-        local holder = Instance.new("Frame")
-        holder.Size = UDim2.new(1, -20, 0, 0)
-        holder.Position = UDim2.new(0, 10, 0, 44)
-        holder.BackgroundTransparency = 1
-        holder.Parent = f
-        local hl = Instance.new("UIListLayout")
-        hl.Padding = UDim.new(0, 4)
-        hl.Parent = holder
-
         local trigger = Instance.new("TextButton")
-        trigger.Size = UDim2.new(1, 0, 0, 40)
+        trigger.Size = UDim2.new(1, 0, 1, 0)
         trigger.BackgroundTransparency = 1
         trigger.Text = ""
         trigger.Parent = f
 
-        local function buildItems()
-            for _, c in pairs(holder:GetChildren()) do
-                if c:IsA("TextButton") then c:Destroy() end
+        local popup = Instance.new("ScrollingFrame")
+        popup.Name = "DropdownOverlay"
+        popup.Visible = false
+        popup.BackgroundColor3 = Theme.Element
+        popup.BorderSizePixel = 0
+        popup.ScrollBarThickness = 3
+        popup.ScrollBarImageColor3 = Theme.Stroke
+        popup.CanvasSize = UDim2.new(0, 0, 0, 0)
+        popup.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        popup.ZIndex = 100
+        popup.Parent = win.Gui
+        corner(popup, 8)
+        stroke(popup, Theme.Stroke, 1)
+        padding(popup, 6)
+        local popupLayout = Instance.new("UIListLayout")
+        popupLayout.Padding = UDim.new(0, 4)
+        popupLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        popupLayout.Parent = popup
+        table.insert(tab._popups, popup)
+
+        local function close()
+            open = false
+            if alive(popup) then popup.Visible = false end
+            if alive(arrow) then arrow.Rotation = 0 end
+        end
+
+        local function rebuild()
+            for _, child in ipairs(popup:GetChildren()) do
+                if child:IsA("TextButton") then child:Destroy() end
             end
-            for _, item in pairs(items) do
-                local name = type(item) == "table" and item[1] or tostring(item)
-                local ib = Instance.new("TextButton")
-                ib.Size = UDim2.new(1, 0, 0, 28)
-                ib.BackgroundColor3 = Theme.Background
-                ib.Text = name
-                ib.TextColor3 = Theme.SubText
-                ib.Font = Enum.Font.Gotham
-                ib.TextSize = 13
-                ib.AutoButtonColor = false
-                ib.Parent = holder
-                corner(ib, 6)
-                ib.MouseEnter:Connect(function() tween(ib, .1, {TextColor3 = Theme.Text}) end)
-                ib.MouseLeave:Connect(function() tween(ib, .1, {TextColor3 = Theme.SubText}) end)
-                ib.MouseButton1Click:Connect(function()
-                    selected.Text = name
-                    open = false
-                    tween(f, .2, {Size = UDim2.new(1,0,0,40)})
-                    tween(arrow, .2, {Rotation = 0})
+            for _, item in ipairs(items) do
+                local itemName = type(item) == "table" and item[1] or tostring(item)
+                local itemButton = Instance.new("TextButton")
+                itemButton.Size = UDim2.new(1, 0, 0, 30)
+                itemButton.BackgroundColor3 = Theme.Background
+                itemButton.BorderSizePixel = 0
+                itemButton.Text = itemName
+                itemButton.TextColor3 = Theme.SubText
+                itemButton.Font = Enum.Font.Gotham
+                itemButton.TextSize = 13
+                itemButton.TextXAlignment = Enum.TextXAlignment.Left
+                itemButton.AutoButtonColor = false
+                itemButton.ZIndex = 101
+                itemButton.Parent = popup
+                corner(itemButton, 6)
+                local itemPadding = Instance.new("UIPadding")
+                itemPadding.PaddingLeft = UDim.new(0, 10)
+                itemPadding.Parent = itemButton
+                itemButton.MouseEnter:Connect(function()
+                    tween(itemButton, .1, {BackgroundColor3 = Theme.ElementHover, TextColor3 = Theme.Text})
+                end)
+                itemButton.MouseLeave:Connect(function()
+                    tween(itemButton, .1, {BackgroundColor3 = Theme.Background, TextColor3 = Theme.SubText})
+                end)
+                itemButton.MouseButton1Click:Connect(function()
+                    selected.Text = itemName
+                    close()
                     if cfg.Callback then cfg.Callback(item) end
                 end)
             end
         end
-        buildItems()
+        rebuild()
+
+        local function show()
+            for _, other in ipairs(tab._popups) do
+                if other ~= popup and alive(other) then other.Visible = false end
+            end
+            local height = math.min(196, (#items * 34) + 12)
+            popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X), height)
+            popup.Position = UDim2.fromOffset(f.AbsolutePosition.X, f.AbsolutePosition.Y + f.AbsoluteSize.Y + 4)
+            popup.Visible = true
+            open = true
+            arrow.Rotation = 180
+        end
 
         trigger.MouseButton1Click:Connect(function()
-            open = not open
-            if open then
-                local h = 44 + (#items * 32) + 8
-                tween(f, .2, {Size = UDim2.new(1,0,0,h)})
-                tween(arrow, .2, {Rotation = 180})
-            else
-                tween(f, .2, {Size = UDim2.new(1,0,0,40)})
-                tween(arrow, .2, {Rotation = 0})
-            end
+            if open then close() else show() end
         end)
         return {
-            AddItems = function(_, new) for _,v in pairs(new) do table.insert(items, v) end buildItems() end,
-            Clear = function() items = {} buildItems() end
+            AddItems = function(_, newItems)
+                for _, item in ipairs(newItems) do table.insert(items, item) end
+                rebuild()
+            end,
+            Clear = function()
+                items = {}
+                close()
+                rebuild()
+            end,
         }
     end
 
