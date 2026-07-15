@@ -577,6 +577,7 @@ function Library:Tab(config)
     padding(page, 14)
     local layout = Instance.new("UIListLayout")
     layout.Padding = UDim.new(0, 8)
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     layout.Parent = page
 
     tab.Button = btn
@@ -584,35 +585,44 @@ function Library:Tab(config)
     tab._popups = {}
 
     local function activate()
+        -- These assignments intentionally do not tween. A hover tween can still
+        -- be running when a tab changes; direct values guarantee that inactive
+        -- tabs immediately return to their transparent, muted state.
         for _, t in pairs(self.Tabs) do
             if t.Page then t.Page.Visible = false end
+            t._active = false
             if t._popups then
                 for _, popup in ipairs(t._popups) do
                     if alive(popup) then popup.Visible = false end
                 end
             end
             if t.Button then
-                tween(t.Button, .15, {
-                    BackgroundTransparency = 1,
-                    BackgroundColor3 = Theme.Element,
-                    TextColor3 = Theme.SubText,
-                })
+                t.Button.BackgroundTransparency = 1
+                t.Button.BackgroundColor3 = Theme.Element
+                t.Button.TextColor3 = Theme.SubText
             end
         end
         page.Visible = true
-        tween(btn, .15, {
-            BackgroundTransparency = 0,
-            BackgroundColor3 = Theme.ElementHover,
-            TextColor3 = Theme.Text,
-        })
+        tab._active = true
+        btn.BackgroundTransparency = 0
+        btn.BackgroundColor3 = Theme.ElementHover
+        btn.TextColor3 = Theme.Text
     end
 
     btn.MouseButton1Click:Connect(activate)
     btn.MouseEnter:Connect(function()
-        if not page.Visible then tween(btn, .15, {TextColor3 = Theme.Text}) end
+        if not tab._active then
+            btn.BackgroundTransparency = 0
+            btn.BackgroundColor3 = Theme.Element
+            btn.TextColor3 = Theme.Text
+        end
     end)
     btn.MouseLeave:Connect(function()
-        if not page.Visible then tween(btn, .15, {TextColor3 = Theme.SubText}) end
+        if not tab._active then
+            btn.BackgroundTransparency = 1
+            btn.BackgroundColor3 = Theme.Element
+            btn.TextColor3 = Theme.SubText
+        end
     end)
 
     table.insert(self.Tabs, tab)
@@ -620,10 +630,13 @@ function Library:Tab(config)
 
     local function baseElement(height)
         local f = Instance.new("Frame")
-        f.Size = UDim2.new(1, 0, 0, height or 40)
+        local target = tab._target or page
+        f.Size = target == page
+            and UDim2.new(0.8, 0, 0, height or 40)
+            or UDim2.new(1, 0, 0, height or 40)
         f.BackgroundColor3 = Theme.Element
         f.BorderSizePixel = 0
-        f.Parent = tab._target or page
+        f.Parent = target
         corner(f, 8)
         stroke(f, Theme.Stroke, 1)
         return f
@@ -636,7 +649,9 @@ function Library:Tab(config)
         local host = cfg.Parent or page
         local card = Instance.new("Frame")
         card.Name = "Group_" .. tostring(cfg.Name or "Section")
-        card.Size = UDim2.new(1, 0, 0, 0)
+        card.Size = host == page
+            and UDim2.new(0.8, 0, 0, 0)
+            or UDim2.new(1, 0, 0, 0)
         card.AutomaticSize = Enum.AutomaticSize.Y
         card.BackgroundColor3 = Theme.Element
         card.BorderSizePixel = 0
@@ -1062,12 +1077,22 @@ function Library:Tab(config)
             for _, other in ipairs(tab._popups) do
                 if other ~= popup and alive(other) then other.Visible = false end
             end
-            local height = math.min(196, (#items * 34) + 12)
-            popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X), height)
-            popup.Position = UDim2.fromOffset(f.AbsolutePosition.X, f.AbsolutePosition.Y + f.AbsoluteSize.Y + 4)
-            popup.Visible = true
-            open = true
-            arrow.Rotation = 180
+            -- Wait one layout frame so AbsolutePosition/AbsoluteSize are final
+            -- inside automatic-size cards before anchoring the screen overlay.
+            task.defer(function()
+                if not alive(f) or not alive(popup) then return end
+                RunService.Heartbeat:Wait()
+                if not alive(f) or not alive(popup) then return end
+                local height = math.min(196, (#items * 34) + 12)
+                popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X), height)
+                popup.Position = UDim2.fromOffset(
+                    f.AbsolutePosition.X,
+                    f.AbsolutePosition.Y + f.AbsoluteSize.Y + 8
+                )
+                popup.Visible = true
+                open = true
+                arrow.Rotation = 180
+            end)
         end
 
         trigger.MouseButton1Click:Connect(function()
@@ -1224,7 +1249,9 @@ function Library:Tab(config)
     --// SECTION HEADER
     function tab:Section(text)
         local l = Instance.new("TextLabel")
-        l.Size = UDim2.new(1, 0, 0, 24)
+        l.Size = (tab._target or page) == page
+            and UDim2.new(0.8, 0, 0, 24)
+            or UDim2.new(1, 0, 0, 24)
         l.BackgroundTransparency = 1
         l.Text = text or "Section"
         l.TextColor3 = Theme.SubText
