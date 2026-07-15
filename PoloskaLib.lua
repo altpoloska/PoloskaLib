@@ -609,10 +609,133 @@ function Library:Tab(config)
         f.Size = UDim2.new(1, 0, 0, height or 40)
         f.BackgroundColor3 = Theme.Element
         f.BorderSizePixel = 0
-        f.Parent = page
+        f.Parent = tab._target or page
         corner(f, 8)
         stroke(f, Theme.Stroke, 1)
         return f
+    end
+
+    -- Group: a titled card that accepts the same controls as a tab.
+    -- Existing tab:Toggle/Slider/etc. calls remain fully compatible.
+    function tab:Group(cfg)
+        cfg = cfg or {}
+        local host = cfg.Parent or page
+        local card = Instance.new("Frame")
+        card.Name = "Group_" .. tostring(cfg.Name or "Section")
+        card.Size = UDim2.new(1, 0, 0, 0)
+        card.AutomaticSize = Enum.AutomaticSize.Y
+        card.BackgroundColor3 = Theme.Element
+        card.BorderSizePixel = 0
+        card.Parent = host
+        corner(card, 10)
+        stroke(card, Theme.Stroke, 1)
+        padding(card, 12)
+
+        local cardLayout = Instance.new("UIListLayout")
+        cardLayout.Padding = UDim.new(0, 8)
+        cardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        cardLayout.Parent = card
+
+        local title = Instance.new("TextLabel")
+        title.Name = "Title"
+        title.Size = UDim2.new(1, 0, 0, 20)
+        title.BackgroundTransparency = 1
+        title.Text = cfg.Name or "Section"
+        title.TextColor3 = Theme.Text
+        title.Font = Enum.Font.GothamBold
+        title.TextSize = 15
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.Parent = card
+
+        if cfg.Description and cfg.Description ~= "" then
+            local description = Instance.new("TextLabel")
+            description.Name = "Description"
+            description.Size = UDim2.new(1, 0, 0, 0)
+            description.AutomaticSize = Enum.AutomaticSize.Y
+            description.BackgroundTransparency = 1
+            description.Text = cfg.Description
+            description.TextColor3 = Theme.SubText
+            description.Font = Enum.Font.Gotham
+            description.TextSize = 12
+            description.TextWrapped = true
+            description.TextXAlignment = Enum.TextXAlignment.Left
+            description.TextYAlignment = Enum.TextYAlignment.Top
+            description.Parent = card
+        end
+
+        local content = Instance.new("Frame")
+        content.Name = "Content"
+        content.Size = UDim2.new(1, 0, 0, 0)
+        content.AutomaticSize = Enum.AutomaticSize.Y
+        content.BackgroundTransparency = 1
+        content.Parent = card
+        local contentLayout = Instance.new("UIListLayout")
+        contentLayout.Padding = UDim.new(0, 6)
+        contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        contentLayout.Parent = content
+
+        local group = { Frame = card, Content = content }
+        local function callInGroup(method, arg)
+            local previous = tab._target
+            tab._target = content
+            local result = tab[method](tab, arg)
+            tab._target = previous
+            return result
+        end
+        for _, method in ipairs({ "Button", "Toggle", "Slider", "Textbox", "Dropdown", "Keybind", "Credit", "Section" }) do
+            group[method] = function(_, arg)
+                return callInGroup(method, arg)
+            end
+        end
+        return group
+    end
+
+    tab.Card = tab.Group
+
+    -- Columns creates equal-width, self-sizing columns. Put Group cards in
+    -- Columns.Left / Columns.Right to avoid one long vertical settings list.
+    function tab:Columns(cfg)
+        cfg = cfg or {}
+        local host = cfg.Parent or page
+        local gap = cfg.Gap or 8
+        local row = Instance.new("Frame")
+        row.Name = "Columns"
+        row.Size = UDim2.new(1, 0, 0, 0)
+        row.BackgroundTransparency = 1
+        row.Parent = host
+
+        local left = Instance.new("Frame")
+        left.Name = "Left"
+        left.Size = UDim2.new(0.5, -gap / 2, 0, 0)
+        left.AutomaticSize = Enum.AutomaticSize.Y
+        left.BackgroundTransparency = 1
+        left.Parent = row
+        local leftLayout = Instance.new("UIListLayout")
+        leftLayout.Padding = UDim.new(0, gap)
+        leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        leftLayout.Parent = left
+
+        local right = Instance.new("Frame")
+        right.Name = "Right"
+        right.Size = UDim2.new(0.5, -gap / 2, 0, 0)
+        right.Position = UDim2.new(0.5, gap / 2, 0, 0)
+        right.AutomaticSize = Enum.AutomaticSize.Y
+        right.BackgroundTransparency = 1
+        right.Parent = row
+        local rightLayout = Instance.new("UIListLayout")
+        rightLayout.Padding = UDim.new(0, gap)
+        rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        rightLayout.Parent = right
+
+        local function syncHeight()
+            if alive(row) then
+                row.Size = UDim2.new(1, 0, 0, math.max(leftLayout.AbsoluteContentSize.Y, rightLayout.AbsoluteContentSize.Y))
+            end
+        end
+        leftLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(syncHeight)
+        rightLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(syncHeight)
+        task.defer(syncHeight)
+        return { Frame = row, Left = left, Right = right }
     end
 
     --// BUTTON
@@ -1054,7 +1177,7 @@ function Library:Tab(config)
         l.Font = Enum.Font.GothamBold
         l.TextSize = 12
         l.TextXAlignment = Enum.TextXAlignment.Left
-        l.Parent = page
+        l.Parent = tab._target or page
         return l
     end
 
