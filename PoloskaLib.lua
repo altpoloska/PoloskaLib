@@ -578,6 +578,12 @@ function Library:Tab(config)
     tab.TabButton = btn
     tab.Page = page
     tab._popups = {}
+    tab._popupClosers = {}
+
+    local function closeAllPopups()
+        for _, closePopup in ipairs(tab._popupClosers) do pcall(closePopup) end
+    end
+    page:GetPropertyChangedSignal("CanvasPosition"):Connect(closeAllPopups)
 
     local function activate()
         -- These assignments intentionally do not tween. A hover tween can still
@@ -706,7 +712,7 @@ function Library:Tab(config)
             tab._target = previous
             return result
         end
-        for _, method in ipairs({ "Button", "Toggle", "Slider", "Textbox", "Dropdown", "Keybind", "Credit", "Section" }) do
+        for _, method in ipairs({ "Button", "Toggle", "Slider", "Textbox", "Dropdown", "MultiDropdown", "Keybind", "Credit", "Section" }) do
             group[method] = function(_, arg)
                 return callInGroup(method, arg)
             end
@@ -1001,16 +1007,38 @@ function Library:Tab(config)
         selected.TextXAlignment = Enum.TextXAlignment.Right
         selected.Parent = f
 
-        local arrow = Instance.new("TextLabel")
-        arrow.Size = UDim2.fromOffset(20, 44)
-        arrow.Position = UDim2.new(1, -26, 0, 0)
+        -- Font-independent vector chevron. The old Unicode glyph rendered as
+        -- a missing-character square on clients whose Roblox font lacked it.
+        local arrow = Instance.new("Frame")
+        arrow.Name = "Chevron"
+        arrow.Size = UDim2.fromOffset(16, 16)
+        arrow.AnchorPoint = Vector2.new(0.5, 0.5)
+        arrow.Position = UDim2.new(1, -17, 0.5, 0)
         arrow.BackgroundTransparency = 1
-        arrow.Text = "▾"
-        arrow.TextColor3 = Theme.SubText
-        arrow.Font = Enum.Font.GothamBold
-        arrow.TextSize = 12
         arrow.ZIndex = 103
         arrow.Parent = f
+
+        local arrowLeft = Instance.new("Frame")
+        arrowLeft.Size = UDim2.fromOffset(7, 2)
+        arrowLeft.AnchorPoint = Vector2.new(1, 0.5)
+        arrowLeft.Position = UDim2.fromOffset(8, 8)
+        arrowLeft.Rotation = 45
+        arrowLeft.BackgroundColor3 = Theme.SubText
+        arrowLeft.BorderSizePixel = 0
+        arrowLeft.ZIndex = 104
+        arrowLeft.Parent = arrow
+        corner(arrowLeft, 2)
+
+        local arrowRight = Instance.new("Frame")
+        arrowRight.Size = UDim2.fromOffset(7, 2)
+        arrowRight.AnchorPoint = Vector2.new(0, 0.5)
+        arrowRight.Position = UDim2.fromOffset(8, 8)
+        arrowRight.Rotation = -45
+        arrowRight.BackgroundColor3 = Theme.SubText
+        arrowRight.BorderSizePixel = 0
+        arrowRight.ZIndex = 104
+        arrowRight.Parent = arrow
+        corner(arrowRight, 2)
 
         local trigger = Instance.new("TextButton")
         trigger.Size = UDim2.new(1, 0, 1, 0)
@@ -1028,7 +1056,7 @@ function Library:Tab(config)
         popup.ScrollBarImageColor3 = Theme.Stroke
         popup.CanvasSize = UDim2.new(0, 0, 0, 0)
         popup.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        popup.ZIndex = 100
+        popup.ZIndex = 10000
         popup.Parent = win.Main
         corner(popup, 8)
         stroke(popup, Theme.Stroke, 1)
@@ -1044,6 +1072,8 @@ function Library:Tab(config)
             if alive(popup) then popup.Visible = false end
             if alive(arrow) then arrow.Rotation = 0 end
         end
+
+        table.insert(tab._popupClosers, close)
 
         local function rebuild()
             for _, child in ipairs(popup:GetChildren()) do
@@ -1061,7 +1091,7 @@ function Library:Tab(config)
                 itemButton.TextSize = 13
                 itemButton.TextXAlignment = Enum.TextXAlignment.Left
                 itemButton.AutoButtonColor = false
-                itemButton.ZIndex = 101
+                itemButton.ZIndex = 10001
                 itemButton.Parent = popup
                 corner(itemButton, 6)
                 local itemPadding = Instance.new("UIPadding")
@@ -1107,6 +1137,12 @@ function Library:Tab(config)
             if open then close() else show() end
         end)
         return {
+            Frame = f,
+            Destroy = function()
+                close()
+                if alive(popup) then popup:Destroy() end
+                if alive(f) then f:Destroy() end
+            end,
             AddItems = function(_, newItems)
                 for _, item in ipairs(newItems) do table.insert(items, item) end
                 rebuild()
@@ -1125,6 +1161,227 @@ function Library:Tab(config)
             Get = function()
                 return selected.Text
             end,
+        }
+    end
+
+    --// MULTI DROPDOWN (keeps the popup open and toggles many values)
+    function tab:MultiDropdown(cfg)
+        cfg = cfg or {}
+        local items = cfg.Items or {}
+        local selectedValues = {}
+        local selectedLookup = {}
+        local open = false
+        local f = baseElement(44)
+
+        local function normalize(value)
+            return type(value) == "table" and value[1] or tostring(value)
+        end
+        local function selectedList()
+            local result = {}
+            for _, item in ipairs(items) do
+                local name = normalize(item)
+                if selectedLookup[name] then result[#result + 1] = name end
+            end
+            return result
+        end
+        local function setSelection(values)
+            selectedLookup = {}
+            if type(values) == "table" then
+                for _, value in ipairs(values) do selectedLookup[normalize(value)] = true end
+            end
+            selectedValues = selectedList()
+        end
+        setSelection(cfg.Default or cfg.StartingValues or {})
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -190, 1, 0)
+        label.Position = UDim2.new(0, 14, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = cfg.Name or "Multi Dropdown"
+        label.TextColor3 = Theme.Text
+        label.Font = Enum.Font.GothamMedium
+        label.TextSize = 13
+        label.TextTruncate = Enum.TextTruncate.AtEnd
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = f
+
+        local selected = Instance.new("TextLabel")
+        selected.Size = UDim2.new(0, 150, 1, 0)
+        selected.Position = UDim2.new(1, -176, 0, 0)
+        selected.BackgroundTransparency = 1
+        selected.TextColor3 = Theme.SubText
+        selected.Font = Enum.Font.Gotham
+        selected.TextSize = 13
+        selected.TextTruncate = Enum.TextTruncate.AtEnd
+        selected.TextXAlignment = Enum.TextXAlignment.Right
+        selected.Parent = f
+
+        -- Font-independent vector chevron. The old Unicode glyph rendered as
+        -- a missing-character square on clients whose Roblox font lacked it.
+        local arrow = Instance.new("Frame")
+        arrow.Name = "Chevron"
+        arrow.Size = UDim2.fromOffset(16, 16)
+        arrow.AnchorPoint = Vector2.new(0.5, 0.5)
+        arrow.Position = UDim2.new(1, -17, 0.5, 0)
+        arrow.BackgroundTransparency = 1
+        arrow.ZIndex = 103
+        arrow.Parent = f
+
+        local arrowLeft = Instance.new("Frame")
+        arrowLeft.Size = UDim2.fromOffset(7, 2)
+        arrowLeft.AnchorPoint = Vector2.new(1, 0.5)
+        arrowLeft.Position = UDim2.fromOffset(8, 8)
+        arrowLeft.Rotation = 45
+        arrowLeft.BackgroundColor3 = Theme.SubText
+        arrowLeft.BorderSizePixel = 0
+        arrowLeft.ZIndex = 104
+        arrowLeft.Parent = arrow
+        corner(arrowLeft, 2)
+
+        local arrowRight = Instance.new("Frame")
+        arrowRight.Size = UDim2.fromOffset(7, 2)
+        arrowRight.AnchorPoint = Vector2.new(0, 0.5)
+        arrowRight.Position = UDim2.fromOffset(8, 8)
+        arrowRight.Rotation = -45
+        arrowRight.BackgroundColor3 = Theme.SubText
+        arrowRight.BorderSizePixel = 0
+        arrowRight.ZIndex = 104
+        arrowRight.Parent = arrow
+        corner(arrowRight, 2)
+
+        local trigger = Instance.new("TextButton")
+        trigger.Size = UDim2.new(1, 0, 1, 0)
+        trigger.BackgroundTransparency = 1
+        trigger.Text = ""
+        trigger.ZIndex = 102
+        trigger.Parent = f
+
+        local popup = Instance.new("ScrollingFrame")
+        popup.Name = "DropdownOverlay"
+        popup.Visible = false
+        popup.BackgroundColor3 = Theme.Element
+        popup.BorderSizePixel = 0
+        popup.ScrollBarThickness = 3
+        popup.ScrollBarImageColor3 = Theme.Stroke
+        popup.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        popup.ZIndex = 10000
+        popup.Parent = win.Main
+        corner(popup, 8)
+        stroke(popup, Theme.Stroke, 1)
+        padding(popup, 6)
+        local popupLayout = Instance.new("UIListLayout")
+        popupLayout.Padding = UDim.new(0, 4)
+        popupLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        popupLayout.Parent = popup
+        table.insert(tab._popups, popup)
+
+        local function updateText()
+            selectedValues = selectedList()
+            if #selectedValues == 0 then
+                selected.Text = cfg.StartingText or "Select..."
+            elseif #selectedValues <= 2 then
+                selected.Text = table.concat(selectedValues, ", ")
+            else
+                selected.Text = tostring(#selectedValues) .. " selected"
+            end
+        end
+        local function close()
+            open = false
+            if alive(popup) then popup.Visible = false end
+            if alive(arrow) then arrow.Rotation = 0 end
+        end
+        table.insert(tab._popupClosers, close)
+        local rebuild
+        rebuild = function()
+            for _, child in ipairs(popup:GetChildren()) do
+                if child:IsA("TextButton") then child:Destroy() end
+            end
+            for _, item in ipairs(items) do
+                local itemName = normalize(item)
+                local itemButton = Instance.new("TextButton")
+                itemButton.Size = UDim2.new(1, 0, 0, 30)
+                itemButton.BackgroundColor3 = selectedLookup[itemName] and Theme.Accent or Theme.Background
+                itemButton.BorderSizePixel = 0
+                itemButton.Text = (selectedLookup[itemName] and "✓  " or "    ") .. itemName
+                itemButton.TextColor3 = selectedLookup[itemName] and Theme.Text or Theme.SubText
+                itemButton.Font = Enum.Font.Gotham
+                itemButton.TextSize = 13
+                itemButton.TextXAlignment = Enum.TextXAlignment.Left
+                itemButton.AutoButtonColor = false
+                itemButton.ZIndex = 10001
+                itemButton.Parent = popup
+                corner(itemButton, 6)
+                local itemPadding = Instance.new("UIPadding")
+                itemPadding.PaddingLeft = UDim.new(0, 10)
+                itemPadding.Parent = itemButton
+                local clickLocked = false
+                local function paintSelection()
+                    local isSelected = selectedLookup[itemName] == true
+                    itemButton.BackgroundColor3 = isSelected and Theme.Accent or Theme.Background
+                    itemButton.Text = (isSelected and "✓  " or "    ") .. itemName
+                    itemButton.TextColor3 = isSelected and Theme.Text or Theme.SubText
+                end
+                paintSelection()
+                itemButton.Activated:Connect(function()
+                    if clickLocked then return end
+                    clickLocked = true
+                    selectedLookup[itemName] = not selectedLookup[itemName] or nil
+                    updateText()
+                    paintSelection()
+                    if cfg.Callback then cfg.Callback(selectedList(), item, selectedLookup[itemName] == true) end
+                    task.delay(0.08, function() clickLocked = false end)
+                end)
+            end
+        end
+        updateText()
+        rebuild()
+
+        local function show()
+            for _, other in ipairs(tab._popups) do
+                if other ~= popup and alive(other) then other.Visible = false end
+            end
+            local height = math.min(230, (#items * 34) + 12)
+            popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X), height)
+            popup.Position = UDim2.fromOffset(
+                f.AbsolutePosition.X - win.Main.AbsolutePosition.X,
+                f.AbsolutePosition.Y - win.Main.AbsolutePosition.Y + f.AbsoluteSize.Y + 8
+            )
+            popup.Visible = true
+            open = true
+            arrow.Rotation = 180
+        end
+        trigger.MouseButton1Click:Connect(function()
+            if open then close() else show() end
+        end)
+
+        return {
+            Frame = f,
+            Destroy = function()
+                close()
+                if alive(popup) then popup:Destroy() end
+                if alive(f) then f:Destroy() end
+            end,
+            AddItems = function(_, newItems)
+                for _, item in ipairs(newItems) do items[#items + 1] = item end
+                updateText()
+                rebuild()
+            end,
+            Clear = function()
+                items = {}
+                selectedLookup = {}
+                selectedValues = {}
+                close()
+                updateText()
+                rebuild()
+            end,
+            Set = function(_, values, invokeCallback)
+                setSelection(values)
+                close()
+                updateText()
+                rebuild()
+                if invokeCallback == true and cfg.Callback then cfg.Callback(selectedList()) end
+            end,
+            Get = function() return selectedList() end,
         }
     end
 
