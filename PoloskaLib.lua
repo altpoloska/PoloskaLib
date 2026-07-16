@@ -164,23 +164,24 @@ function Library:Create(config)
         for k, v in pairs(config.Icons) do icons[k] = v end
     end
 
-    -- CoreGui identity test. Identity is raised only for the Parent assignment
-    -- and restored immediately afterwards. PlayerGui remains the safe fallback.
-    local environment = getfenv()
-    local setIdentity = rawget(environment, "setthreadidentity")
-        or rawget(environment, "setidentity")
-    local getIdentity = rawget(environment, "getthreadidentity")
-        or rawget(environment, "getidentity")
-    local previousIdentity
+    -- Prefer the executor's hidden UI container. Unlike raw CoreGui, gethui()
+    -- stays writable when tabs and controls are created later on other threads.
+    -- If the executor does not expose it, use PlayerGui instead of leaving the
+    -- whole library at an elevated thread identity.
+    local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+    local guiParent = playerGui
 
-    if type(getIdentity) == "function" then
-        pcall(function() previousIdentity = getIdentity() end)
+    local environment = (type(getgenv) == "function" and getgenv()) or getfenv()
+    local getHiddenUi = rawget(environment, "gethui") or rawget(getfenv(), "gethui")
+    if type(getHiddenUi) == "function" then
+        local ok, hiddenUi = pcall(getHiddenUi)
+        if ok and typeof(hiddenUi) == "Instance" then
+            guiParent = hiddenUi
+        end
     end
 
-    local coreGui = game:GetService("CoreGui")
-    local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-    local guiParent = coreGui
-    local old = coreGui:FindFirstChild("MinimalUI") or playerGui:FindFirstChild("MinimalUI")
+    local old = guiParent:FindFirstChild("MinimalUI")
+        or playerGui:FindFirstChild("MinimalUI")
     if old then old:Destroy() end
 
     local gui = Instance.new("ScreenGui")
@@ -189,23 +190,13 @@ function Library:Create(config)
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.IgnoreGuiInset = true
 
-    local parentedToCoreGui = pcall(function()
-        if previousIdentity ~= nil and type(setIdentity) == "function" then
-            setIdentity(7)
-        end
-        gui.Parent = coreGui
-    end)
-
-    if previousIdentity ~= nil and type(setIdentity) == "function" then
-        pcall(setIdentity, previousIdentity)
-    end
-
-    if not parentedToCoreGui then
+    local parented = pcall(function() gui.Parent = guiParent end)
+    if not parented then
         guiParent = playerGui
         gui.Parent = playerGui
-        warn("[PoloskaLib] CoreGui identity test failed; using PlayerGui")
-    else
-        print("[PoloskaLib] CoreGui identity test passed")
+        warn("[PoloskaLib] Hidden UI unavailable; using PlayerGui")
+    elseif guiParent ~= playerGui then
+        print("[PoloskaLib] GUI parented through gethui")
     end
     window.Gui = gui
 
