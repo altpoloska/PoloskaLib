@@ -1111,6 +1111,15 @@ function Library:Tab(config)
                 close()
                 rebuild()
             end,
+            Set = function(_, value, invokeCallback)
+                local itemName = type(value) == "table" and value[1] or tostring(value)
+                selected.Text = itemName
+                close()
+                if invokeCallback == true and cfg.Callback then cfg.Callback(value) end
+            end,
+            Get = function()
+                return selected.Text
+            end,
         }
     end
 
