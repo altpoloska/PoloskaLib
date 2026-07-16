@@ -164,40 +164,22 @@ function Library:Create(config)
         for k, v in pairs(config.Icons) do icons[k] = v end
     end
 
-    -- Prefer the executor's hidden UI container. Unlike raw CoreGui, gethui()
-    -- stays writable when tabs and controls are created later on other threads.
-    -- If the executor does not expose it, use PlayerGui instead of leaving the
-    -- whole library at an elevated thread identity.
-    local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-    local guiParent = playerGui
-
-    local environment = (type(getgenv) == "function" and getgenv()) or getfenv()
-    local getHiddenUi = rawget(environment, "gethui") or rawget(getfenv(), "gethui")
-    if type(getHiddenUi) == "function" then
-        local ok, hiddenUi = pcall(getHiddenUi)
-        if ok and typeof(hiddenUi) == "Instance" then
-            guiParent = hiddenUi
-        end
-    end
-
+    -- This executor requires Plugin capability for descendants of CoreGui/gethui.
+    -- Keep the whole UI in PlayerGui so tabs, groups, notifications, and controls
+    -- can be created later from ordinary callback threads without permission errors.
+    local guiParent = Players.LocalPlayer:WaitForChild("PlayerGui")
     local old = guiParent:FindFirstChild("MinimalUI")
-        or playerGui:FindFirstChild("MinimalUI")
     if old then old:Destroy() end
 
     local gui = Instance.new("ScreenGui")
     gui.Name = "MinimalUI"
     gui.ResetOnSpawn = false
-    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    -- Keep this ScreenGui above ordinary PlayerGui interfaces without using CoreGui.
+    gui.DisplayOrder = 2147483647
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
     gui.IgnoreGuiInset = true
-
-    local parented = pcall(function() gui.Parent = guiParent end)
-    if not parented then
-        guiParent = playerGui
-        gui.Parent = playerGui
-        warn("[PoloskaLib] Hidden UI unavailable; using PlayerGui")
-    elseif guiParent ~= playerGui then
-        print("[PoloskaLib] GUI parented through gethui")
-    end
+    gui.Enabled = true
+    gui.Parent = guiParent
     window.Gui = gui
 
     -- Main window
