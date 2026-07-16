@@ -164,10 +164,23 @@ function Library:Create(config)
         for k, v in pairs(config.Icons) do icons[k] = v end
     end
 
-    -- Prefer CoreGui; fall back to PlayerGui when CoreGui is unavailable.
-    local guiParent = game:GetService("CoreGui")
-        or Players.LocalPlayer:WaitForChild("PlayerGui")
-    local old = guiParent:FindFirstChild("MinimalUI")
+    -- CoreGui identity test. Identity is raised only for the Parent assignment
+    -- and restored immediately afterwards. PlayerGui remains the safe fallback.
+    local environment = getfenv()
+    local setIdentity = rawget(environment, "setthreadidentity")
+        or rawget(environment, "setidentity")
+    local getIdentity = rawget(environment, "getthreadidentity")
+        or rawget(environment, "getidentity")
+    local previousIdentity
+
+    if type(getIdentity) == "function" then
+        pcall(function() previousIdentity = getIdentity() end)
+    end
+
+    local coreGui = game:GetService("CoreGui")
+    local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+    local guiParent = coreGui
+    local old = coreGui:FindFirstChild("MinimalUI") or playerGui:FindFirstChild("MinimalUI")
     if old then old:Destroy() end
 
     local gui = Instance.new("ScreenGui")
@@ -175,7 +188,25 @@ function Library:Create(config)
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.IgnoreGuiInset = true
-    gui.Parent = guiParent
+
+    local parentedToCoreGui = pcall(function()
+        if previousIdentity ~= nil and type(setIdentity) == "function" then
+            setIdentity(8)
+        end
+        gui.Parent = coreGui
+    end)
+
+    if previousIdentity ~= nil and type(setIdentity) == "function" then
+        pcall(setIdentity, previousIdentity)
+    end
+
+    if not parentedToCoreGui then
+        guiParent = playerGui
+        gui.Parent = playerGui
+        warn("[PoloskaLib] CoreGui identity test failed; using PlayerGui")
+    else
+        print("[PoloskaLib] CoreGui identity test passed")
+    end
     window.Gui = gui
 
     -- Main window
