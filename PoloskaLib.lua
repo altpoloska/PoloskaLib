@@ -164,8 +164,9 @@ function Library:Create(config)
         for k, v in pairs(config.Icons) do icons[k] = v end
     end
 
-    -- Standard PlayerGui parent: maximally compatible with the current executor.
-    local guiParent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    -- Prefer CoreGui; fall back to PlayerGui when CoreGui is unavailable.
+    local guiParent = game:GetService("CoreGui")
+        or Players.LocalPlayer:WaitForChild("PlayerGui")
     local old = guiParent:FindFirstChild("MinimalUI")
     if old then old:Destroy() end
 
