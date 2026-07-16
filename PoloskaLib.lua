@@ -10,7 +10,6 @@
 local TweenService     = game:GetService("TweenService")
 local UserInputService  = game:GetService("UserInputService")
 local RunService       = game:GetService("RunService")
-local CoreGui          = game:GetService("CoreGui")
 local Players          = game:GetService("Players")
 
 local Library = { Version = "floating-dropdown-1" }
@@ -165,26 +164,17 @@ function Library:Create(config)
         for k, v in pairs(config.Icons) do icons[k] = v end
     end
 
-    -- Remove any previous instance
-    pcall(function()
-        local old = CoreGui:FindFirstChild("MinimalUI")
-        if old then old:Destroy() end
-    end)
-    local pg = Players.LocalPlayer:FindFirstChild("PlayerGui")
-    if pg and pg:FindFirstChild("MinimalUI") then
-        pg.MinimalUI:Destroy()
-    end
+    -- Standard PlayerGui parent: maximally compatible with the current executor.
+    local guiParent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    local old = guiParent:FindFirstChild("MinimalUI")
+    if old then old:Destroy() end
 
-    -- Root GUI
     local gui = Instance.new("ScreenGui")
     gui.Name = "MinimalUI"
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.IgnoreGuiInset = true
-    pcall(function() gui.Parent = CoreGui end)
-    if not gui.Parent then
-        gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-    end
+    gui.Parent = guiParent
     window.Gui = gui
 
     -- Main window
@@ -921,24 +911,35 @@ function Library:Tab(config)
     --// TEXTBOX
     function tab:Textbox(cfg)
         cfg = cfg or {}
-        local f = baseElement(40)
+        local stacked = cfg.Stacked == true
+        local f = baseElement(stacked and 72 or 40)
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.5, -14, 1, 0)
+        label.Size = stacked
+            and UDim2.new(1, -28, 0, 24)
+            or UDim2.new(0.5, -14, 1, 0)
         label.Position = UDim2.new(0, 14, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = cfg.Name or "Textbox"
         label.TextColor3 = Theme.Text
         label.Font = Enum.Font.GothamMedium
         label.TextSize = 14
+        label.TextTruncate = Enum.TextTruncate.AtEnd
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = f
 
         local boxFrame = Instance.new("Frame")
-        boxFrame.Size = UDim2.new(0.5, -14, 0, 26)
-        boxFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-        boxFrame.AnchorPoint = Vector2.new(0, 0.5)
+        boxFrame.Size = stacked
+            and UDim2.new(1, -28, 0, 30)
+            or UDim2.new(0.5, -14, 0, 26)
+        boxFrame.Position = stacked
+            and UDim2.new(0, 14, 0, 34)
+            or UDim2.new(0.5, 0, 0.5, 0)
+        boxFrame.AnchorPoint = stacked and Vector2.new(0, 0) or Vector2.new(0, 0.5)
         boxFrame.BackgroundColor3 = Theme.Background
         boxFrame.BorderSizePixel = 0
+        -- Long values (notably Discord webhook URLs) must stay inside the
+        -- rounded input frame instead of rendering over adjacent UI/gameplay.
+        boxFrame.ClipsDescendants = true
         boxFrame.Parent = f
         corner(boxFrame, 6)
         stroke(boxFrame, Theme.Stroke, 1)
@@ -947,13 +948,15 @@ function Library:Tab(config)
         box.Size = UDim2.new(1, -12, 1, 0)
         box.Position = UDim2.new(0, 6, 0, 0)
         box.BackgroundTransparency = 1
-        box.Text = ""
+        box.Text = cfg.Default or ""
         box.PlaceholderText = cfg.Placeholder or "Type here..."
         box.PlaceholderColor3 = Theme.SubText
         box.TextColor3 = Theme.Text
         box.Font = Enum.Font.Gotham
         box.TextSize = 13
         box.TextXAlignment = Enum.TextXAlignment.Left
+        box.TextTruncate = Enum.TextTruncate.AtEnd
+        box.ClipsDescendants = true
         box.ClearTextOnFocus = false
         box.Parent = boxFrame
         box.FocusLost:Connect(function()
@@ -1250,14 +1253,21 @@ function Library:Tab(config)
     function tab:Section(text)
         local l = Instance.new("TextLabel")
         l.Size = (tab._target or page) == page
-            and UDim2.new(0.8, 0, 0, 24)
-            or UDim2.new(1, 0, 0, 24)
+            and UDim2.new(0.8, 0, 0, 0)
+            or UDim2.new(1, 0, 0, 0)
+        l.AutomaticSize = Enum.AutomaticSize.Y
         l.BackgroundTransparency = 1
         l.Text = text or "Section"
         l.TextColor3 = Theme.SubText
         l.Font = Enum.Font.GothamBold
         l.TextSize = 12
+        l.TextWrapped = true
         l.TextXAlignment = Enum.TextXAlignment.Left
+        l.TextYAlignment = Enum.TextYAlignment.Top
+        local sectionPadding = Instance.new("UIPadding")
+        sectionPadding.PaddingTop = UDim.new(0, 4)
+        sectionPadding.PaddingBottom = UDim.new(0, 4)
+        sectionPadding.Parent = l
         l.Parent = tab._target or page
         return l
     end
