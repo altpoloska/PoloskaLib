@@ -191,7 +191,7 @@ function Library:Create(config)
 
     local parentedToCoreGui = pcall(function()
         if previousIdentity ~= nil and type(setIdentity) == "function" then
-            setIdentity(8)
+            setIdentity(7)
         end
         gui.Parent = coreGui
     end)
