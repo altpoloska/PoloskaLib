@@ -648,6 +648,8 @@ function Library:Tab(config)
     function tab:Group(cfg)
         cfg = cfg or {}
         local host = cfg.Parent or page
+        local collapsible = cfg.Collapsible ~= false
+        local collapsed = collapsible and cfg.Collapsed == true or false
         local card = Instance.new("Frame")
         card.Name = "Group_" .. tostring(cfg.Name or "Section")
         card.Size = host == page
@@ -656,6 +658,7 @@ function Library:Tab(config)
         card.AutomaticSize = Enum.AutomaticSize.Y
         card.BackgroundColor3 = Theme.Element
         card.BorderSizePixel = 0
+        card.ClipsDescendants = true
         card.Parent = host
         corner(card, 10)
         stroke(card, Theme.Stroke, 1)
@@ -666,19 +669,57 @@ function Library:Tab(config)
         cardLayout.SortOrder = Enum.SortOrder.LayoutOrder
         cardLayout.Parent = card
 
+        local header = Instance.new("Frame")
+        header.Name = "Header"
+        header.Size = UDim2.new(1, 0, 0, 20)
+        header.BackgroundTransparency = 1
+        header.Parent = card
+
         local title = Instance.new("TextLabel")
         title.Name = "Title"
-        title.Size = UDim2.new(1, 0, 0, 20)
+        title.Size = UDim2.new(1, collapsible and -26 or 0, 1, 0)
         title.BackgroundTransparency = 1
         title.Text = cfg.Name or "Section"
         title.TextColor3 = Theme.Text
         title.Font = Enum.Font.GothamBold
         title.TextSize = 15
         title.TextXAlignment = Enum.TextXAlignment.Left
-        title.Parent = card
+        title.Parent = header
 
+        local chevron
+        if collapsible then
+            chevron = Instance.new("Frame")
+            chevron.Name = "CollapseChevron"
+            chevron.Size = UDim2.fromOffset(16, 16)
+            chevron.AnchorPoint = Vector2.new(0.5, 0.5)
+            chevron.Position = UDim2.new(1, -8, 0.5, 0)
+            chevron.BackgroundTransparency = 1
+            chevron.Parent = header
+
+            local left = Instance.new("Frame")
+            left.Size = UDim2.fromOffset(7, 2)
+            left.AnchorPoint = Vector2.new(1, 0.5)
+            left.Position = UDim2.fromOffset(8, 8)
+            left.Rotation = 45
+            left.BackgroundColor3 = Theme.SubText
+            left.BorderSizePixel = 0
+            left.Parent = chevron
+            corner(left, 2)
+
+            local right = Instance.new("Frame")
+            right.Size = UDim2.fromOffset(7, 2)
+            right.AnchorPoint = Vector2.new(0, 0.5)
+            right.Position = UDim2.fromOffset(8, 8)
+            right.Rotation = -45
+            right.BackgroundColor3 = Theme.SubText
+            right.BorderSizePixel = 0
+            right.Parent = chevron
+            corner(right, 2)
+        end
+
+        local description
         if cfg.Description and cfg.Description ~= "" then
-            local description = Instance.new("TextLabel")
+            description = Instance.new("TextLabel")
             description.Name = "Description"
             description.Size = UDim2.new(1, 0, 0, 0)
             description.AutomaticSize = Enum.AutomaticSize.Y
@@ -704,7 +745,31 @@ function Library:Tab(config)
         contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
         contentLayout.Parent = content
 
-        local group = { Frame = card, Content = content }
+        local function setCollapsed(value)
+            if not collapsible then value = false end
+            collapsed = value == true
+            content.Visible = not collapsed
+            if description then description.Visible = not collapsed end
+            if chevron then chevron.Rotation = collapsed and -90 or 0 end
+        end
+
+        if collapsible then
+            local trigger = Instance.new("TextButton")
+            trigger.Name = "CollapseButton"
+            trigger.Size = UDim2.new(1, 0, 1, 0)
+            trigger.BackgroundTransparency = 1
+            trigger.Text = ""
+            trigger.AutoButtonColor = false
+            trigger.ZIndex = 2
+            trigger.Parent = header
+            trigger.MouseButton1Click:Connect(function() setCollapsed(not collapsed) end)
+        end
+
+        local group = { Frame = card, Content = content, Header = header }
+        function group:SetCollapsed(value) setCollapsed(value) end
+        function group:ToggleCollapsed() setCollapsed(not collapsed) end
+        function group:IsCollapsed() return collapsed end
+
         local function callInGroup(method, arg)
             local previous = tab._target
             tab._target = content
@@ -717,6 +782,7 @@ function Library:Tab(config)
                 return callInGroup(method, arg)
             end
         end
+        setCollapsed(collapsed)
         return group
     end
 
