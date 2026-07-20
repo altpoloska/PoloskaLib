@@ -157,6 +157,9 @@ function Library:Create(config)
     window.Tabs = {}
     window.Visible = true
     window.Minimized = false
+    window.UserScale = math.clamp(tonumber(config.Scale) or 1, 0.50, 1.25)
+    window.AutoScale = config.AutoScale ~= false
+    window.ToggleButtonVisible = config.ShowToggleButton ~= false
 
     local icons = {}
     for k, v in pairs(DefaultIcons) do icons[k] = v end
@@ -197,6 +200,43 @@ function Library:Create(config)
     main.Parent = gui
     corner(main, 12)
     stroke(main, Theme.Stroke, 1)
+
+    local uiScale = Instance.new("UIScale")
+    uiScale.Name = "ResponsiveScale"
+    uiScale.Scale = window.UserScale
+    uiScale.Parent = main
+    window.ScaleObject = uiScale
+
+    local cameraConnection
+    local function applyResponsiveScale()
+        if not alive(main) or not alive(uiScale) then return end
+        local effective = window.UserScale
+        local camera = workspace.CurrentCamera
+        local viewport = camera and camera.ViewportSize
+        if window.AutoScale and UserInputService.TouchEnabled and viewport then
+            local fitX = math.max(0.50, (viewport.X - 24) / math.max(size.X.Offset, 1))
+            local fitY = math.max(0.50, (viewport.Y - 54) / math.max(size.Y.Offset, 1))
+            effective = math.min(effective, fitX, fitY)
+        end
+        effective = math.clamp(effective, 0.50, 1.25)
+        uiScale.Scale = effective
+        window.EffectiveScale = effective
+        -- Keep the top edge vertically centered exactly as before, now using
+        -- the rendered height rather than the unscaled desktop height.
+        main.Position = UDim2.new(0.5, 0, 0.5, -(size.Y.Offset * effective) / 2)
+    end
+    window._applyResponsiveScale = applyResponsiveScale
+    applyResponsiveScale()
+    if workspace.CurrentCamera then
+        cameraConnection = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(applyResponsiveScale)
+    end
+    workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+        if cameraConnection then cameraConnection:Disconnect() end
+        if workspace.CurrentCamera then
+            cameraConnection = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(applyResponsiveScale)
+        end
+        applyResponsiveScale()
+    end)
 
     tween(main, 0.35, {Size = size}, SMOOTH_STYLE, SMOOTH_DIR)
 
@@ -324,7 +364,59 @@ function Library:Create(config)
         end
     end)
 
+    -- Persistent launcher for both touch and desktop. It remains outside Main,
+    -- so it can restore the menu after the menu itself has been hidden.
+    local launcher = Instance.new("ImageButton")
+    launcher.Name = "PoloskaLauncher"
+    launcher.Size = UDim2.fromOffset(54, 54)
+    launcher.Position = UDim2.new(0, 16, 0.5, -27)
+    launcher.BackgroundColor3 = Theme.Background
+    launcher.BackgroundTransparency = 0.08
+    launcher.BorderSizePixel = 0
+    launcher.AutoButtonColor = false
+    launcher.Image = resolveIcon(config.ToggleButtonAsset or "rbxassetid://105771515206761")
+    launcher.ScaleType = Enum.ScaleType.Fit
+    launcher.Visible = window.ToggleButtonVisible
+    launcher.ZIndex = 20000
+    launcher.Parent = gui
+    corner(launcher, 14)
+    stroke(launcher, Theme.Stroke, 1)
+    local launcherPadding = Instance.new("UIPadding")
+    launcherPadding.PaddingTop = UDim.new(0, 5)
+    launcherPadding.PaddingBottom = UDim.new(0, 5)
+    launcherPadding.PaddingLeft = UDim.new(0, 5)
+    launcherPadding.PaddingRight = UDim.new(0, 5)
+    launcherPadding.Parent = launcher
+    launcher.Activated:Connect(function()
+        window:Toggle()
+    end)
+    makeDraggable(launcher, launcher)
+    window.Launcher = launcher
+
     return window
+end
+
+function Library:SetToggleKey(key)
+    if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
+        self.ToggleKey = key
+        return true
+    end
+    return false
+end
+
+function Library:SetScale(scale)
+    self.UserScale = math.clamp(tonumber(scale) or 1, 0.50, 1.25)
+    if self._applyResponsiveScale then self._applyResponsiveScale() end
+end
+
+function Library:SetAutoScale(enabled)
+    self.AutoScale = enabled == true
+    if self._applyResponsiveScale then self._applyResponsiveScale() end
+end
+
+function Library:SetToggleButtonVisible(visible)
+    self.ToggleButtonVisible = visible == true
+    if alive(self.Launcher) then self.Launcher.Visible = self.ToggleButtonVisible end
 end
 
 --============================================================
@@ -967,13 +1059,23 @@ function Library:Tab(config)
             if cfg.Callback then cfg.Callback(value) end
         end
         bar.InputBegan:Connect(function(i)
-            if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; set(i.Position.X) end
+            if i.UserInputType == Enum.UserInputType.MouseButton1
+                or i.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                set(i.Position.X)
+            end
         end)
         UserInputService.InputEnded:Connect(function(i)
-            if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+            if i.UserInputType == Enum.UserInputType.MouseButton1
+                or i.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
         end)
         UserInputService.InputChanged:Connect(function(i)
-            if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then set(i.Position.X) end
+            if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement
+                or i.UserInputType == Enum.UserInputType.Touch) then
+                set(i.Position.X)
+            end
         end)
         return {
             Set = function(_, v)
