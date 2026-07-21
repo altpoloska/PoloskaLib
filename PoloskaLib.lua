@@ -1127,12 +1127,12 @@ function Library:Tab(config)
         valLabel.BorderSizePixel = 0
         valLabel.Text = tostring(value)
         valLabel.TextColor3 = editable and Theme.Text or Theme.SubText
-        valLabel.PlaceholderColor3 = Theme.SubText
         valLabel.Font = Enum.Font.GothamMedium
         valLabel.TextSize = 13
         valLabel.TextXAlignment = Enum.TextXAlignment.Right
-        valLabel.ClearTextOnFocus = false
         if editable then
+            valLabel.PlaceholderColor3 = Theme.SubText
+            valLabel.ClearTextOnFocus = false
             valLabel.TextEditable = true
             corner(valLabel, 6)
             stroke(valLabel, Theme.Stroke, 1)
