@@ -294,15 +294,17 @@ function Library:Create(config)
         local effective = window.UserScale
         local camera = workspace.CurrentCamera
         local viewport = camera and camera.ViewportSize
-        if window.AutoScale and UserInputService.TouchEnabled and viewport then
-            local fitX = math.max(0.50, (viewport.X - 24) / math.max(size.X.Offset, 1))
-            local fitY = math.max(0.50, (viewport.Y - 54) / math.max(size.Y.Offset, 1))
-            -- Automatic mobile scaling may shrink the desktop layout to fit,
-            -- but must never enlarge it above the 75% mobile cap after
-            -- viewport/orientation changes.
+        local mobileAutoScale = window.AutoScale
+            and UserInputService.TouchEnabled and viewport ~= nil
+        if mobileAutoScale then
+            -- Target at most 90% of the screen width and 72% of its height.
+            -- Height is the limiting dimension on short landscape phones such
+            -- as 1024x503, while portrait phones naturally shrink by width.
+            local fitX = (viewport.X * 0.90) / math.max(size.X.Offset, 1)
+            local fitY = (viewport.Y * 0.72) / math.max(size.Y.Offset, 1)
             effective = math.min(effective, fitX, fitY, 0.75)
         end
-        effective = math.clamp(effective, 0.50, 1.25)
+        effective = math.clamp(effective, mobileAutoScale and 0.35 or 0.50, 1.25)
         uiScale.Scale = effective
         window.EffectiveScale = effective
         -- Keep the top edge vertically centered exactly as before, now using
