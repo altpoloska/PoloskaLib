@@ -116,36 +116,117 @@ end
 
 --// Window dragging
 local function makeDraggable(frame, handle)
-    local dragging, dragInput, startPos, startFramePos
+    local state = { Moved = false, SuppressClick = false }
+    local dragging = false
+    local activeInput = nil
+    local inputKind = nil
+    local startPos = nil
+    local startFramePos = nil
+    local DRAG_THRESHOLD = 6
+
+    local function renderedScale()
+        local scaleObject = frame:FindFirstChild("ResponsiveScale")
+        local scale = scaleObject and tonumber(scaleObject.Scale) or 1
+        return math.max(scale or 1, 0.01)
+    end
+
+    local function clampToViewport(position)
+        local camera = workspace.CurrentCamera
+        local viewport = camera and camera.ViewportSize
+        if not viewport or frame.AbsoluteSize.X <= 0 or frame.AbsoluteSize.Y <= 0 then
+            return position
+        end
+
+        local margin = 8
+        local width = frame.AbsoluteSize.X
+        local height = frame.AbsoluteSize.Y
+        local anchor = frame.AnchorPoint
+        local anchorX = viewport.X * position.X.Scale + position.X.Offset
+        local anchorY = viewport.Y * position.Y.Scale + position.Y.Offset
+        local minX = margin + width * anchor.X
+        local maxX = viewport.X - margin - width * (1 - anchor.X)
+        local minY = margin + height * anchor.Y
+        local maxY = viewport.Y - margin - height * (1 - anchor.Y)
+
+        if minX <= maxX then anchorX = math.clamp(anchorX, minX, maxX) end
+        if minY <= maxY then anchorY = math.clamp(anchorY, minY, maxY) end
+
+        return UDim2.new(
+            position.X.Scale, anchorX - viewport.X * position.X.Scale,
+            position.Y.Scale, anchorY - viewport.Y * position.Y.Scale
+        )
+    end
+
+    local function finish(input)
+        if not dragging or (activeInput and input and input ~= activeInput) then return end
+        if state.Moved then state.SuppressClick = true end
+        dragging = false
+        activeInput = nil
+        inputKind = nil
+        startPos = nil
+        startFramePos = nil
+    end
+
     handle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            startPos = input.Position
-            startFramePos = frame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
+        local kind = input.UserInputType
+        if kind ~= Enum.UserInputType.MouseButton1
+            and kind ~= Enum.UserInputType.Touch then return end
+
+        dragging = true
+        activeInput = input
+        inputKind = kind
+        startPos = input.Position
+        startFramePos = frame.Position
+        state.Moved = false
+        state.SuppressClick = false
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End
+                or input.UserInputState == Enum.UserInputState.Cancel then
+                finish(input)
+            end
+        end)
     end)
-    handle.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
+
     UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            if not alive(frame) then dragging = false return end
-            local delta = input.Position - startPos
-            frame.Position = UDim2.new(
-                startFramePos.X.Scale, startFramePos.X.Offset + delta.X,
-                startFramePos.Y.Scale, startFramePos.Y.Offset + delta.Y
-            )
+        if not dragging or not alive(frame) or not startPos or not startFramePos then return end
+
+        local matchesTouch = inputKind == Enum.UserInputType.Touch and input == activeInput
+        local matchesMouse = inputKind == Enum.UserInputType.MouseButton1
+            and input.UserInputType == Enum.UserInputType.MouseMovement
+        if not matchesTouch and not matchesMouse then return end
+
+        local rawDelta = input.Position - startPos
+        if math.max(math.abs(rawDelta.X), math.abs(rawDelta.Y)) >= DRAG_THRESHOLD then
+            state.Moved = true
+        end
+        if not state.Moved then return end
+
+        local scale = renderedScale()
+        local deltaX = rawDelta.X / scale
+        local deltaY = rawDelta.Y / scale
+        local target = UDim2.new(
+            startFramePos.X.Scale, startFramePos.X.Offset + deltaX,
+            startFramePos.Y.Scale, startFramePos.Y.Offset + deltaY
+        )
+        frame.Position = clampToViewport(target)
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input == activeInput
+            or (inputKind == Enum.UserInputType.MouseButton1
+                and input.UserInputType == Enum.UserInputType.MouseButton1) then
+            finish(activeInput)
         end
     end)
+
+    function state:ConsumeClick()
+        if not self.SuppressClick then return false end
+        self.SuppressClick = false
+        return true
+    end
+
+    return state
 end
 
 --============================================================
@@ -390,10 +471,11 @@ function Library:Create(config)
     launcherPadding.PaddingLeft = UDim.new(0, 5)
     launcherPadding.PaddingRight = UDim.new(0, 5)
     launcherPadding.Parent = launcher
+    local launcherDrag = makeDraggable(launcher, launcher)
     launcher.Activated:Connect(function()
+        if launcherDrag:ConsumeClick() then return end
         window:Toggle()
     end)
-    makeDraggable(launcher, launcher)
     window.Launcher = launcher
 
     return window
