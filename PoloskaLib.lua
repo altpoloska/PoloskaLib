@@ -238,7 +238,7 @@ function Library:Create(config)
     window.Tabs = {}
     window.Visible = true
     window.Minimized = false
-    window.UserScale = math.clamp(tonumber(config.Scale) or 1, 0.50, 1.25)
+    window.UserScale = math.clamp(tonumber(config.Scale) or 1, UserInputService.TouchEnabled and 0.35 or 0.50, 1.25)
     window.AutoScale = config.AutoScale ~= false
     window.ToggleButtonVisible = config.ShowToggleButton ~= false
 
@@ -492,7 +492,7 @@ function Library:SetToggleKey(key)
 end
 
 function Library:SetScale(scale)
-    self.UserScale = math.clamp(tonumber(scale) or 1, 0.50, 1.25)
+    self.UserScale = math.clamp(tonumber(scale) or 1, UserInputService.TouchEnabled and 0.35 or 0.50, 1.25)
     if self._applyResponsiveScale then self._applyResponsiveScale() end
 end
 
@@ -1095,12 +1095,21 @@ function Library:Tab(config)
     --// SLIDER
     function tab:Slider(cfg)
         cfg = cfg or {}
-        local min, max = cfg.Min or 0, cfg.Max or 100
-        local value = cfg.Default or min
+        local min, max = tonumber(cfg.Min) or 0, tonumber(cfg.Max) or 100
+        local editable = cfg.Editable == true
+        local commitOnRelease = cfg.CommitOnRelease == true
+
+        local function normalizeValue(candidate)
+            local number = tonumber(candidate)
+            if not number then return nil end
+            return math.clamp(math.floor(number + 0.5), min, max)
+        end
+
+        local value = normalizeValue(cfg.Default) or min
         local f = baseElement(54)
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -60, 0, 20)
+        label.Size = UDim2.new(1, -78, 0, 20)
         label.Position = UDim2.new(0, 14, 0, 8)
         label.BackgroundTransparency = 1
         label.Text = cfg.Name or "Slider"
@@ -1110,15 +1119,28 @@ function Library:Tab(config)
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = f
 
-        local valLabel = Instance.new("TextLabel")
-        valLabel.Size = UDim2.new(0, 50, 0, 20)
-        valLabel.Position = UDim2.new(1, -60, 0, 8)
-        valLabel.BackgroundTransparency = 1
+        local valLabel = Instance.new(editable and "TextBox" or "TextLabel")
+        valLabel.Size = UDim2.new(0, 58, 0, editable and 24 or 20)
+        valLabel.Position = UDim2.new(1, -70, 0, editable and 6 or 8)
+        valLabel.BackgroundTransparency = editable and 0 or 1
+        valLabel.BackgroundColor3 = Theme.Background
+        valLabel.BorderSizePixel = 0
         valLabel.Text = tostring(value)
-        valLabel.TextColor3 = Theme.SubText
+        valLabel.TextColor3 = editable and Theme.Text or Theme.SubText
+        valLabel.PlaceholderColor3 = Theme.SubText
         valLabel.Font = Enum.Font.GothamMedium
         valLabel.TextSize = 13
         valLabel.TextXAlignment = Enum.TextXAlignment.Right
+        valLabel.ClearTextOnFocus = false
+        if editable then
+            valLabel.TextEditable = true
+            corner(valLabel, 6)
+            stroke(valLabel, Theme.Stroke, 1)
+            local valuePadding = Instance.new("UIPadding")
+            valuePadding.PaddingLeft = UDim.new(0, 6)
+            valuePadding.PaddingRight = UDim.new(0, 6)
+            valuePadding.Parent = valLabel
+        end
         valLabel.Parent = f
 
         local bar = Instance.new("Frame")
@@ -1130,61 +1152,99 @@ function Library:Tab(config)
         corner(bar, 3)
 
         local fill = Instance.new("Frame")
-        fill.Size = UDim2.new((value-min)/(max-min), 0, 1, 0)
         fill.BackgroundColor3 = Theme.Accent
         fill.BorderSizePixel = 0
         fill.Parent = bar
         corner(fill, 3)
 
+        local function render()
+            local range = math.max(max - min, 1)
+            local rel = math.clamp((value - min) / range, 0, 1)
+            if alive(fill) then fill.Size = UDim2.new(rel, 0, 1, 0) end
+            if alive(valLabel) then valLabel.Text = tostring(value) end
+        end
+
+        local function emitLive()
+            if cfg.LiveCallback then
+                cfg.LiveCallback(value)
+            elseif not commitOnRelease and cfg.Callback then
+                cfg.Callback(value)
+            end
+        end
+
+        local function commit()
+            if cfg.Callback then cfg.Callback(value) end
+        end
+
+        local function assign(candidate, live)
+            local normalized = normalizeValue(candidate)
+            if normalized == nil then return false end
+            local changed = normalized ~= value
+            value = normalized
+            render()
+            if live and (changed or cfg.EmitUnchanged == true) then emitLive() end
+            return changed
+        end
+
         local dragging = false
+        local dragChanged = false
         local activeTouch = nil
         local touchStart = nil
         local touchCommitted = false
-        local function set(x)
-            if not alive(bar) then dragging = false return end
+
+        local function setFromX(x)
+            if not alive(bar) or bar.AbsoluteSize.X <= 0 then
+                dragging = false
+                return false
+            end
             local rel = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
-            value = math.floor(min + (max - min) * rel + 0.5)
-            fill.Size = UDim2.new(rel, 0, 1, 0)
-            valLabel.Text = tostring(value)
-            if cfg.Callback then cfg.Callback(value) end
+            return assign(min + (max - min) * rel, true)
         end
-        bar.InputBegan:Connect(function(i)
-            if i.UserInputType == Enum.UserInputType.MouseButton1 then
+
+        bar.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = true
-                set(i.Position.X)
-            elseif i.UserInputType == Enum.UserInputType.Touch then
-                -- Do not change a slider on touch-down: that gesture may be a
-                -- vertical page scroll which merely started over the bar.
-                activeTouch = i
-                touchStart = i.Position
+                dragChanged = setFromX(input.Position.X)
+            elseif input.UserInputType == Enum.UserInputType.Touch then
+                -- Wait for horizontal intent so a vertical page scroll which
+                -- starts over the slider never changes its value.
+                activeTouch = input
+                touchStart = input.Position
                 touchCommitted = false
+                dragChanged = false
                 dragging = false
             end
         end)
-        UserInputService.InputEnded:Connect(function(i)
-            if i.UserInputType == Enum.UserInputType.MouseButton1 then
+
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging
+                and activeTouch == nil then
                 dragging = false
-            elseif i.UserInputType == Enum.UserInputType.Touch and i == activeTouch then
-                -- A stationary tap is intentional. A vertical gesture clears
-                -- activeTouch below and therefore never changes the value.
-                if not touchCommitted and touchStart then set(i.Position.X) end
+                if commitOnRelease and dragChanged then commit() end
+                dragChanged = false
+            elseif input.UserInputType == Enum.UserInputType.Touch and input == activeTouch then
+                if not touchCommitted and touchStart then
+                    dragChanged = setFromX(input.Position.X) or dragChanged
+                end
+                if commitOnRelease and dragChanged then commit() end
                 dragging = false
                 activeTouch = nil
                 touchStart = nil
                 touchCommitted = false
+                dragChanged = false
             end
         end)
-        UserInputService.InputChanged:Connect(function(i)
-            if i.UserInputType == Enum.UserInputType.MouseMovement and dragging
+
+        UserInputService.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement and dragging
                 and activeTouch == nil then
-                set(i.Position.X)
-            elseif i.UserInputType == Enum.UserInputType.Touch and i == activeTouch
+                dragChanged = setFromX(input.Position.X) or dragChanged
+            elseif input.UserInputType == Enum.UserInputType.Touch and input == activeTouch
                 and touchStart then
-                local delta = i.Position - touchStart
+                local delta = input.Position - touchStart
                 if not touchCommitted then
                     if math.max(math.abs(delta.X), math.abs(delta.Y)) < 8 then return end
                     if math.abs(delta.Y) > math.abs(delta.X) then
-                        -- Hand the gesture back to the ScrollingFrame.
                         dragging = false
                         activeTouch = nil
                         touchStart = nil
@@ -1193,16 +1253,34 @@ function Library:Tab(config)
                     touchCommitted = true
                     dragging = true
                 end
-                if dragging then set(i.Position.X) end
+                if dragging then
+                    dragChanged = setFromX(input.Position.X) or dragChanged
+                end
             end
         end)
+
+        if editable then
+            valLabel.FocusLost:Connect(function()
+                local parsed = tonumber((valLabel.Text or ""):gsub("%%", ""):gsub(",", "."))
+                if parsed == nil then
+                    render()
+                    return
+                end
+                local changed = assign(parsed, true)
+                if commitOnRelease and changed then commit() end
+            end)
+        end
+
+        render()
         return {
-            Set = function(_, v)
-                value = v
-                local rel = (v-min)/(max-min)
-                if alive(fill) then fill.Size = UDim2.new(rel,0,1,0) end
-                if alive(valLabel) then valLabel.Text = tostring(v) end
-            end
+            Frame = f,
+            Input = editable and valLabel or nil,
+            Set = function(_, candidate)
+                assign(candidate, false)
+            end,
+            Get = function()
+                return value
+            end,
         }
     end
 
