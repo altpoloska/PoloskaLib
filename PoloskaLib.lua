@@ -216,7 +216,10 @@ function Library:Create(config)
         if window.AutoScale and UserInputService.TouchEnabled and viewport then
             local fitX = math.max(0.50, (viewport.X - 24) / math.max(size.X.Offset, 1))
             local fitY = math.max(0.50, (viewport.Y - 54) / math.max(size.Y.Offset, 1))
-            effective = math.min(effective, fitX, fitY)
+            -- Automatic mobile scaling may shrink the desktop layout to fit,
+            -- but must never enlarge it above the 75% mobile cap after
+            -- viewport/orientation changes.
+            effective = math.min(effective, fitX, fitY, 0.75)
         end
         effective = math.clamp(effective, 0.50, 1.25)
         uiScale.Scale = effective
@@ -374,7 +377,7 @@ function Library:Create(config)
     launcher.BackgroundTransparency = 0.08
     launcher.BorderSizePixel = 0
     launcher.AutoButtonColor = false
-    launcher.Image = resolveIcon(config.ToggleButtonAsset or "rbxassetid://105771515206761")
+    launcher.Image = resolveIcon(config.ToggleButtonAsset or "rbxassetid://76774068789424")
     launcher.ScaleType = Enum.ScaleType.Fit
     launcher.Visible = window.ToggleButtonVisible
     launcher.ZIndex = 20000
@@ -1050,6 +1053,9 @@ function Library:Tab(config)
         corner(fill, 3)
 
         local dragging = false
+        local activeTouch = nil
+        local touchStart = nil
+        local touchCommitted = false
         local function set(x)
             if not alive(bar) then dragging = false return end
             local rel = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
@@ -1059,22 +1065,51 @@ function Library:Tab(config)
             if cfg.Callback then cfg.Callback(value) end
         end
         bar.InputBegan:Connect(function(i)
-            if i.UserInputType == Enum.UserInputType.MouseButton1
-                or i.UserInputType == Enum.UserInputType.Touch then
+            if i.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = true
                 set(i.Position.X)
-            end
-        end)
-        UserInputService.InputEnded:Connect(function(i)
-            if i.UserInputType == Enum.UserInputType.MouseButton1
-                or i.UserInputType == Enum.UserInputType.Touch then
+            elseif i.UserInputType == Enum.UserInputType.Touch then
+                -- Do not change a slider on touch-down: that gesture may be a
+                -- vertical page scroll which merely started over the bar.
+                activeTouch = i
+                touchStart = i.Position
+                touchCommitted = false
                 dragging = false
             end
         end)
+        UserInputService.InputEnded:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+            elseif i.UserInputType == Enum.UserInputType.Touch and i == activeTouch then
+                -- A stationary tap is intentional. A vertical gesture clears
+                -- activeTouch below and therefore never changes the value.
+                if not touchCommitted and touchStart then set(i.Position.X) end
+                dragging = false
+                activeTouch = nil
+                touchStart = nil
+                touchCommitted = false
+            end
+        end)
         UserInputService.InputChanged:Connect(function(i)
-            if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement
-                or i.UserInputType == Enum.UserInputType.Touch) then
+            if i.UserInputType == Enum.UserInputType.MouseMovement and dragging
+                and activeTouch == nil then
                 set(i.Position.X)
+            elseif i.UserInputType == Enum.UserInputType.Touch and i == activeTouch
+                and touchStart then
+                local delta = i.Position - touchStart
+                if not touchCommitted then
+                    if math.max(math.abs(delta.X), math.abs(delta.Y)) < 8 then return end
+                    if math.abs(delta.Y) > math.abs(delta.X) then
+                        -- Hand the gesture back to the ScrollingFrame.
+                        dragging = false
+                        activeTouch = nil
+                        touchStart = nil
+                        return
+                    end
+                    touchCommitted = true
+                    dragging = true
+                end
+                if dragging then set(i.Position.X) end
             end
         end)
         return {
