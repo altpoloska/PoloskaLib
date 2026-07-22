@@ -448,7 +448,8 @@ function Library:Create(config)
         b.BackgroundColor3 = Theme.Element
         b.AutoButtonColor = false
         b.Image = resolveIcon(iconId)
-        b.ImageColor3 = Theme.SubText
+        b.ImageColor3 = Color3.new(1, 1, 1)
+        b:SetAttribute("PreserveImageColor", true)
         b.ScaleType = Enum.ScaleType.Fit
         b.Parent = topbar
         corner(b, 6)
@@ -457,10 +458,10 @@ function Library:Create(config)
         ic.PaddingLeft = UDim.new(0,7); ic.PaddingRight = UDim.new(0,7)
         ic.Parent = b
         b.MouseEnter:Connect(function()
-            tween(b, .15, {BackgroundColor3 = hoverColor, ImageColor3 = Theme.Text})
+            tween(b, .15, {BackgroundColor3 = hoverColor})
         end)
         b.MouseLeave:Connect(function()
-            tween(b, .15, {BackgroundColor3 = Theme.Element, ImageColor3 = Theme.SubText})
+            tween(b, .15, {BackgroundColor3 = Theme.Element})
         end)
         return b
     end
@@ -544,17 +545,21 @@ function Library:Create(config)
     -- Start the draggable launcher centered at the top on every device,
     -- with a small offset below Roblox's top bar.
     launcher.Position = UDim2.new(0.5, -27, 0, 14)
-    launcher.BackgroundColor3 = Theme.Background
+    launcher.BackgroundColor3 = Color3.fromRGB(8, 15, 29)
     launcher.BackgroundTransparency = 0.08
     launcher.BorderSizePixel = 0
     launcher.AutoButtonColor = false
     launcher.Image = resolveIcon(config.ToggleButtonAsset or "rbxassetid://76774068789424")
+    launcher.ImageColor3 = Color3.new(1, 1, 1)
+    launcher:SetAttribute("PreserveImageColor", true)
+    launcher:SetAttribute("PreserveThemeColors", true)
     launcher.ScaleType = Enum.ScaleType.Fit
     launcher.Visible = window.ToggleButtonVisible
     launcher.ZIndex = 20000
     launcher.Parent = gui
     corner(launcher, 14)
-    stroke(launcher, Theme.Stroke, 1)
+    local launcherStroke = stroke(launcher, Color3.fromRGB(38, 61, 91), 1)
+    launcherStroke:SetAttribute("PreserveThemeColors", true)
     local launcherPadding = Instance.new("UIPadding")
     launcherPadding.PaddingTop = UDim.new(0, 5)
     launcherPadding.PaddingBottom = UDim.new(0, 5)
@@ -590,7 +595,9 @@ function Library:SetTheme(name)
         return nil
     end
     for _, object in ipairs(self.Gui:GetDescendants()) do
-        if object:IsA("UIStroke") then
+        if object:GetAttribute("PreserveThemeColors") == true then
+            -- Branded/full-color images keep their original presentation.
+        elseif object:IsA("UIStroke") then
             local color = translated(object.Color)
             if color then object.Color = color end
         elseif object:IsA("UIGradient") then
@@ -602,6 +609,7 @@ function Library:SetTheme(name)
         else
             for _, property in ipairs(colorProperties) do
                 pcall(function()
+                    if property == "ImageColor3" and object:GetAttribute("PreserveImageColor") == true then return end
                     local color = translated(object[property])
                     if color then object[property] = color end
                 end)
