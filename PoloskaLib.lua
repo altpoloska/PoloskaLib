@@ -16,19 +16,45 @@ local Library = { Version = "floating-dropdown-1" }
 Library.__index = Library
 
 --// THEME
-local Theme = {
-    Background   = Color3.fromRGB(8, 15, 29),
-    Sidebar      = Color3.fromRGB(12, 22, 40),
-    Element      = Color3.fromRGB(17, 31, 52),
-    ElementHover = Color3.fromRGB(24, 44, 70),
-    Stroke       = Color3.fromRGB(38, 61, 91),
-    Accent       = Color3.fromRGB(31, 196, 224),
-    AccentViolet = Color3.fromRGB(117, 65, 246),
-    Text         = Color3.fromRGB(242, 248, 255),
-    SubText      = Color3.fromRGB(146, 166, 194),
-    Danger       = Color3.fromRGB(232, 75, 96),
-    Discord      = Color3.fromRGB(88, 101, 242),
+local ThemePresets = {
+    -- Current blue/cyan Poloska palette remains the default.
+    Poloska = {
+        Background = Color3.fromRGB(8, 15, 29), Sidebar = Color3.fromRGB(12, 22, 40),
+        Element = Color3.fromRGB(17, 31, 52), ElementHover = Color3.fromRGB(24, 44, 70),
+        Stroke = Color3.fromRGB(38, 61, 91), Accent = Color3.fromRGB(31, 196, 224),
+        AccentViolet = Color3.fromRGB(117, 65, 246), Text = Color3.fromRGB(242, 248, 255),
+        SubText = Color3.fromRGB(146, 166, 194), Danger = Color3.fromRGB(232, 75, 96),
+        Discord = Color3.fromRGB(88, 101, 242),
+    },
+    -- Palette recovered from an earlier PoloskaLib commit.
+    ["Classic Dark"] = {
+        Background = Color3.fromRGB(18, 18, 20), Sidebar = Color3.fromRGB(24, 24, 27),
+        Element = Color3.fromRGB(30, 30, 34), ElementHover = Color3.fromRGB(38, 38, 43),
+        Stroke = Color3.fromRGB(45, 45, 50), Accent = Color3.fromRGB(120, 130, 255),
+        AccentViolet = Color3.fromRGB(150, 100, 255), Text = Color3.fromRGB(235, 235, 240),
+        SubText = Color3.fromRGB(140, 140, 150), Danger = Color3.fromRGB(200, 60, 60),
+        Discord = Color3.fromRGB(88, 101, 242),
+    },
+    Light = {
+        Background = Color3.fromRGB(242, 246, 252), Sidebar = Color3.fromRGB(226, 234, 245),
+        Element = Color3.fromRGB(255, 255, 255), ElementHover = Color3.fromRGB(211, 225, 242),
+        Stroke = Color3.fromRGB(171, 190, 214), Accent = Color3.fromRGB(0, 145, 184),
+        AccentViolet = Color3.fromRGB(101, 72, 210), Text = Color3.fromRGB(20, 31, 48),
+        SubText = Color3.fromRGB(75, 94, 119), Danger = Color3.fromRGB(196, 54, 76),
+        Discord = Color3.fromRGB(88, 101, 242),
+    },
 }
+local Theme = {}
+local CurrentThemeName = "Poloska"
+for key, color in pairs(ThemePresets.Poloska) do Theme[key] = color end
+
+local function selectTheme(name)
+    local preset = ThemePresets[name]
+    if not preset then return false end
+    CurrentThemeName = name
+    for key, color in pairs(preset) do Theme[key] = color end
+    return true
+end
 
 --// Default icons (rbxassetid). Переопределяются через config.Icons
 local DefaultIcons = {
@@ -235,7 +261,9 @@ end
 --============================================================
 function Library:Create(config)
     config = config or {}
+    selectTheme(config.Theme or "Poloska")
     local window = setmetatable({}, Library)
+    window.ThemeName = CurrentThemeName
     window.Tabs = {}
     window.Visible = true
     window.Minimized = false
@@ -482,6 +510,7 @@ function Library:Create(config)
     padding(tabList, 10)
     local tabLayout = Instance.new("UIListLayout")
     tabLayout.Padding = UDim.new(0, 6)
+    tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
     tabLayout.Parent = tabList
 
     -- Content container
@@ -512,7 +541,9 @@ function Library:Create(config)
     local launcher = Instance.new("ImageButton")
     launcher.Name = "PoloskaLauncher"
     launcher.Size = UDim2.fromOffset(54, 54)
-    launcher.Position = UDim2.new(0, 16, 0.5, -27)
+    -- Start the draggable launcher centered at the top on every device,
+    -- with a small offset below Roblox's top bar.
+    launcher.Position = UDim2.new(0.5, -27, 0, 14)
     launcher.BackgroundColor3 = Theme.Background
     launcher.BackgroundTransparency = 0.08
     launcher.BorderSizePixel = 0
@@ -538,6 +569,50 @@ function Library:Create(config)
     window.Launcher = launcher
 
     return window
+end
+
+function Library:SetTheme(name)
+    local preset = ThemePresets[name]
+    if not preset then return false, "Unknown theme" end
+    local previous = {}
+    for key, color in pairs(Theme) do previous[key] = color end
+    selectTheme(name)
+    self.ThemeName = name
+
+    local colorProperties = {
+        "BackgroundColor3", "TextColor3", "ImageColor3",
+        "ScrollBarImageColor3", "PlaceholderColor3",
+    }
+    local function translated(color)
+        for key, oldColor in pairs(previous) do
+            if color == oldColor then return Theme[key] end
+        end
+        return nil
+    end
+    for _, object in ipairs(self.Gui:GetDescendants()) do
+        if object:IsA("UIStroke") then
+            local color = translated(object.Color)
+            if color then object.Color = color end
+        elseif object:IsA("UIGradient") then
+            local points = object.Color.Keypoints
+            if #points == 2 and points[1].Value == previous.Accent
+                and points[2].Value == previous.AccentViolet then
+                object.Color = ColorSequence.new(Theme.Accent, Theme.AccentViolet)
+            end
+        else
+            for _, property in ipairs(colorProperties) do
+                pcall(function()
+                    local color = translated(object[property])
+                    if color then object[property] = color end
+                end)
+            end
+        end
+    end
+    return true
+end
+
+function Library:GetThemeNames()
+    return { "Poloska", "Classic Dark", "Light" }
 end
 
 function Library:SetToggleKey(key)
@@ -792,6 +867,7 @@ function Library:Tab(config)
     btn.TextSize = 14
     btn.TextXAlignment = Enum.TextXAlignment.Left
     btn.AutoButtonColor = false
+    btn.LayoutOrder = #self.Tabs + 1
     btn.Parent = self.TabList
     corner(btn, 7)
 
