@@ -12,7 +12,7 @@ local UserInputService  = game:GetService("UserInputService")
 local RunService       = game:GetService("RunService")
 local Players          = game:GetService("Players")
 
-local Library = { Version = "floating-dropdown-1" }
+local Library = { Version = "test-design-1", TestDesign = true }
 Library.__index = Library
 
 --// THEME
@@ -891,19 +891,35 @@ function Library:Tab(config)
     page.Parent = self.Container
     padding(page, 14)
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 8)
+    layout.Padding = UDim.new(0, 12)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = page
+
+    local dropdownScrollReserve = Instance.new("Frame")
+    dropdownScrollReserve.Name = "DropdownScrollReserve"
+    dropdownScrollReserve.Size = UDim2.new(0.8, 0, 0, 0)
+    dropdownScrollReserve.BackgroundTransparency = 1
+    dropdownScrollReserve.BorderSizePixel = 0
+    dropdownScrollReserve.LayoutOrder = 1000000
+    dropdownScrollReserve.Parent = page
 
     tab.TabButton = btn
     tab.Page = page
     tab._popups = {}
     tab._popupClosers = {}
+    tab._popupRefreshers = {}
 
+    local function setDropdownScrollReserve(height)
+        dropdownScrollReserve.Size = UDim2.new(0.8, 0, 0, math.max(0, tonumber(height) or 0))
+    end
     local function closeAllPopups()
         for _, closePopup in ipairs(tab._popupClosers) do pcall(closePopup) end
     end
-    page:GetPropertyChangedSignal("CanvasPosition"):Connect(closeAllPopups)
+    local function refreshOpenPopups()
+        for _, refreshPopup in ipairs(tab._popupRefreshers) do pcall(refreshPopup) end
+    end
+    page:GetPropertyChangedSignal("CanvasPosition"):Connect(refreshOpenPopups)
 
     local function activate()
         -- These assignments intentionally do not tween. A hover tween can still
@@ -912,7 +928,9 @@ function Library:Tab(config)
         for _, t in pairs(self.Tabs) do
             if t.Page then t.Page.Visible = false end
             t._active = false
-            if t._popups then
+            if t._popupClosers then
+                for _, closePopup in ipairs(t._popupClosers) do pcall(closePopup) end
+            elseif t._popups then
                 for _, popup in ipairs(t._popups) do
                     if alive(popup) then popup.Visible = false end
                 end
@@ -976,7 +994,7 @@ function Library:Tab(config)
             and UDim2.new(0.8, 0, 0, 0)
             or UDim2.new(1, 0, 0, 0)
         card.AutomaticSize = Enum.AutomaticSize.Y
-        card.BackgroundColor3 = Theme.Element
+        card.BackgroundColor3 = Theme.ElementHover
         card.BorderSizePixel = 0
         card.ClipsDescendants = true
         card.Parent = host
@@ -1113,7 +1131,7 @@ function Library:Tab(config)
     function tab:Columns(cfg)
         cfg = cfg or {}
         local host = cfg.Parent or page
-        local gap = cfg.Gap or 8
+        local gap = cfg.Gap or 12
         local row = Instance.new("Frame")
         row.Name = "Columns"
         row.Size = UDim2.new(1, 0, 0, 0)
@@ -1573,10 +1591,20 @@ function Library:Tab(config)
         popupLayout.Parent = popup
         table.insert(tab._popups, popup)
 
+        local function positionPopup()
+            if not open or not alive(popup) or not alive(f) then return end
+            popup.Position = UDim2.fromOffset(
+                f.AbsolutePosition.X - win.Main.AbsolutePosition.X,
+                f.AbsolutePosition.Y - win.Main.AbsolutePosition.Y + f.AbsoluteSize.Y + 8
+            )
+        end
+        table.insert(tab._popupRefreshers, positionPopup)
+
         local function close()
             open = false
             if alive(popup) then popup.Visible = false end
             if alive(arrow) then arrow.Rotation = 0 end
+            setDropdownScrollReserve(0)
         end
 
         table.insert(tab._popupClosers, close)
@@ -1619,26 +1647,15 @@ function Library:Tab(config)
         rebuild()
 
         local function show()
-            for _, other in ipairs(tab._popups) do
-                if other ~= popup and alive(other) then other.Visible = false end
-            end
-            -- Dropdown rows have a fixed 44px height. Anchor with that fixed
-            -- height instead of an automatic-layout AbsoluteSize, which can be
-            -- reported as zero for one frame and place the first option on top
-            -- of the trigger button.
+            closeAllPopups()
             local height = math.min(196, (#items * 34) + 12)
             popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X), height)
-            -- f.AbsolutePosition is screen-relative. Convert it to the local
-            -- coordinate system of the draggable main window / portal parent.
-            popup.Position = UDim2.fromOffset(
-                f.AbsolutePosition.X - win.Main.AbsolutePosition.X,
-                f.AbsolutePosition.Y - win.Main.AbsolutePosition.Y + f.AbsoluteSize.Y + 8
-            )
-            popup.Visible = true
             open = true
+            setDropdownScrollReserve(height + 28)
+            positionPopup()
+            popup.Visible = true
             arrow.Rotation = 180
         end
-
         trigger.MouseButton1Click:Connect(function()
             if open then close() else show() end
         end)
@@ -1791,10 +1808,20 @@ function Library:Tab(config)
                 selected.Text = tostring(#selectedValues) .. " selected"
             end
         end
+        local function positionPopup()
+            if not open or not alive(popup) or not alive(f) then return end
+            popup.Position = UDim2.fromOffset(
+                f.AbsolutePosition.X - win.Main.AbsolutePosition.X,
+                f.AbsolutePosition.Y - win.Main.AbsolutePosition.Y + f.AbsoluteSize.Y + 8
+            )
+        end
+        table.insert(tab._popupRefreshers, positionPopup)
+
         local function close()
             open = false
             if alive(popup) then popup.Visible = false end
             if alive(arrow) then arrow.Rotation = 0 end
+            setDropdownScrollReserve(0)
         end
         table.insert(tab._popupClosers, close)
         local rebuild
@@ -1843,17 +1870,13 @@ function Library:Tab(config)
         rebuild()
 
         local function show()
-            for _, other in ipairs(tab._popups) do
-                if other ~= popup and alive(other) then other.Visible = false end
-            end
+            closeAllPopups()
             local height = math.min(230, (#items * 34) + 12)
             popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X), height)
-            popup.Position = UDim2.fromOffset(
-                f.AbsolutePosition.X - win.Main.AbsolutePosition.X,
-                f.AbsolutePosition.Y - win.Main.AbsolutePosition.Y + f.AbsoluteSize.Y + 8
-            )
-            popup.Visible = true
             open = true
+            setDropdownScrollReserve(height + 28)
+            positionPopup()
+            popup.Visible = true
             arrow.Rotation = 180
         end
         trigger.MouseButton1Click:Connect(function()
