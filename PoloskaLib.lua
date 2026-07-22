@@ -17,15 +17,16 @@ Library.__index = Library
 
 --// THEME
 local Theme = {
-    Background   = Color3.fromRGB(18, 18, 20),
-    Sidebar      = Color3.fromRGB(24, 24, 27),
-    Element      = Color3.fromRGB(30, 30, 34),
-    ElementHover = Color3.fromRGB(38, 38, 43),
-    Stroke       = Color3.fromRGB(45, 45, 50),
-    Accent       = Color3.fromRGB(120, 130, 255),
-    Text         = Color3.fromRGB(235, 235, 240),
-    SubText      = Color3.fromRGB(140, 140, 150),
-    Danger       = Color3.fromRGB(200, 60, 60),
+    Background   = Color3.fromRGB(8, 15, 29),
+    Sidebar      = Color3.fromRGB(12, 22, 40),
+    Element      = Color3.fromRGB(17, 31, 52),
+    ElementHover = Color3.fromRGB(24, 44, 70),
+    Stroke       = Color3.fromRGB(38, 61, 91),
+    Accent       = Color3.fromRGB(31, 196, 224),
+    AccentViolet = Color3.fromRGB(117, 65, 246),
+    Text         = Color3.fromRGB(242, 248, 255),
+    SubText      = Color3.fromRGB(146, 166, 194),
+    Danger       = Color3.fromRGB(232, 75, 96),
     Discord      = Color3.fromRGB(88, 101, 242),
 }
 
@@ -281,6 +282,62 @@ function Library:Create(config)
     main.Parent = gui
     corner(main, 12)
     stroke(main, Theme.Stroke, 1)
+
+    -- Subtle code-native brand backdrop inspired by the Poloska pencil icon.
+    -- It uses ordinary Roblox primitives, so consumers still load only this
+    -- library from GitHub and never depend on a bundled image file.
+    local backdrop = Instance.new("Frame")
+    backdrop.Name = "PoloskaBackdrop"
+    backdrop.Size = UDim2.fromScale(1, 1)
+    backdrop.BackgroundTransparency = 1
+    backdrop.BorderSizePixel = 0
+    backdrop.ZIndex = 0
+    backdrop.Parent = main
+
+    local ring = Instance.new("Frame")
+    ring.Name = "BrandRing"
+    ring.Size = UDim2.fromOffset(330, 330)
+    ring.Position = UDim2.new(1, -255, 0.5, -145)
+    ring.BackgroundTransparency = 1
+    ring.BorderSizePixel = 0
+    ring.ZIndex = 0
+    ring.Parent = backdrop
+    corner(ring, 165)
+    local ringStroke = stroke(ring, Theme.AccentViolet, 2)
+    ringStroke.Transparency = 0.88
+
+    local function brandStick(name, position, rotation, color, length)
+        local shadow = Instance.new("Frame")
+        shadow.Name = name .. "Shadow"
+        shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+        shadow.Position = position + UDim2.fromOffset(4, 5)
+        shadow.Size = UDim2.fromOffset(length, 18)
+        shadow.Rotation = rotation
+        shadow.BackgroundColor3 = Color3.fromRGB(2, 7, 16)
+        shadow.BackgroundTransparency = 0.55
+        shadow.BorderSizePixel = 0
+        shadow.ZIndex = 0
+        shadow.Parent = backdrop
+        corner(shadow, 9)
+        local stick = Instance.new("Frame")
+        stick.Name = name
+        stick.AnchorPoint = Vector2.new(0.5, 0.5)
+        stick.Position = position
+        stick.Size = UDim2.fromOffset(length, 12)
+        stick.Rotation = rotation
+        stick.BackgroundColor3 = color
+        stick.BackgroundTransparency = 0.82
+        stick.BorderSizePixel = 0
+        stick.ZIndex = 0
+        stick.Parent = backdrop
+        corner(stick, 6)
+        local gradient = Instance.new("UIGradient")
+        gradient.Color = ColorSequence.new(Theme.Accent, Theme.AccentViolet)
+        gradient.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(1, 0.45) })
+        gradient.Parent = stick
+    end
+    brandStick("PencilA", UDim2.new(0.79, 0, 0.72, 0), -47, Theme.Accent, 280)
+    brandStick("PencilB", UDim2.new(0.69, 0, 0.28, 0), -47, Theme.AccentViolet, 190)
 
     local uiScale = Instance.new("UIScale")
     uiScale.Name = "ResponsiveScale"
