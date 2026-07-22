@@ -1505,10 +1505,13 @@ function Library:Tab(config)
         cfg = cfg or {}
         local items = cfg.Items or {}
         local open = false
-        local f = baseElement(44)
+        local stacked = cfg.Stacked == true
+        local f = baseElement(stacked and 72 or 44)
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -190, 1, 0)
+        label.Size = stacked
+            and UDim2.new(1, -28, 0, 24)
+            or UDim2.new(1, -190, 1, 0)
         label.Position = UDim2.new(0, 14, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = cfg.Name or "Dropdown"
@@ -1520,15 +1523,19 @@ function Library:Tab(config)
         label.Parent = f
 
         local selected = Instance.new("TextLabel")
-        selected.Size = UDim2.new(0, 150, 1, 0)
-        selected.Position = UDim2.new(1, -176, 0, 0)
+        selected.Size = stacked
+            and UDim2.new(1, -58, 0, 30)
+            or UDim2.new(0, 150, 1, 0)
+        selected.Position = stacked
+            and UDim2.new(0, 14, 0, 34)
+            or UDim2.new(1, -176, 0, 0)
         selected.BackgroundTransparency = 1
         selected.Text = cfg.StartingText or "Select..."
         selected.TextColor3 = Theme.SubText
         selected.Font = Enum.Font.Gotham
         selected.TextSize = 13
         selected.TextTruncate = Enum.TextTruncate.AtEnd
-        selected.TextXAlignment = Enum.TextXAlignment.Right
+        selected.TextXAlignment = stacked and Enum.TextXAlignment.Left or Enum.TextXAlignment.Right
         selected.Parent = f
 
         -- Font-independent vector chevron. The old Unicode glyph rendered as
@@ -1537,7 +1544,9 @@ function Library:Tab(config)
         arrow.Name = "Chevron"
         arrow.Size = UDim2.fromOffset(16, 16)
         arrow.AnchorPoint = Vector2.new(0.5, 0.5)
-        arrow.Position = UDim2.new(1, -17, 0.5, 0)
+        arrow.Position = stacked
+            and UDim2.new(1, -17, 0, 49)
+            or UDim2.new(1, -17, 0.5, 0)
         arrow.BackgroundTransparency = 1
         arrow.ZIndex = 103
         arrow.Parent = f
@@ -1694,7 +1703,8 @@ function Library:Tab(config)
         local selectedValues = {}
         local selectedLookup = {}
         local open = false
-        local f = baseElement(44)
+        local stacked = cfg.Stacked == true
+        local f = baseElement(stacked and 72 or 44)
 
         local function normalize(value)
             return type(value) == "table" and value[1] or tostring(value)
@@ -1717,7 +1727,9 @@ function Library:Tab(config)
         setSelection(cfg.Default or cfg.StartingValues or {})
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -190, 1, 0)
+        label.Size = stacked
+            and UDim2.new(1, -28, 0, 24)
+            or UDim2.new(1, -190, 1, 0)
         label.Position = UDim2.new(0, 14, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = cfg.Name or "Multi Dropdown"
@@ -1729,14 +1741,18 @@ function Library:Tab(config)
         label.Parent = f
 
         local selected = Instance.new("TextLabel")
-        selected.Size = UDim2.new(0, 150, 1, 0)
-        selected.Position = UDim2.new(1, -176, 0, 0)
+        selected.Size = stacked
+            and UDim2.new(1, -58, 0, 30)
+            or UDim2.new(0, 150, 1, 0)
+        selected.Position = stacked
+            and UDim2.new(0, 14, 0, 34)
+            or UDim2.new(1, -176, 0, 0)
         selected.BackgroundTransparency = 1
         selected.TextColor3 = Theme.SubText
         selected.Font = Enum.Font.Gotham
         selected.TextSize = 13
         selected.TextTruncate = Enum.TextTruncate.AtEnd
-        selected.TextXAlignment = Enum.TextXAlignment.Right
+        selected.TextXAlignment = stacked and Enum.TextXAlignment.Left or Enum.TextXAlignment.Right
         selected.Parent = f
 
         -- Font-independent vector chevron. The old Unicode glyph rendered as
@@ -1745,7 +1761,9 @@ function Library:Tab(config)
         arrow.Name = "Chevron"
         arrow.Size = UDim2.fromOffset(16, 16)
         arrow.AnchorPoint = Vector2.new(0.5, 0.5)
-        arrow.Position = UDim2.new(1, -17, 0.5, 0)
+        arrow.Position = stacked
+            and UDim2.new(1, -17, 0, 49)
+            or UDim2.new(1, -17, 0.5, 0)
         arrow.BackgroundTransparency = 1
         arrow.ZIndex = 103
         arrow.Parent = f
