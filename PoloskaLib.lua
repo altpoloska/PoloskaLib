@@ -885,8 +885,11 @@ function Library:Tab(config)
     page.BorderSizePixel = 0
     page.ScrollBarThickness = 3
     page.ScrollBarImageColor3 = Theme.Stroke
-    page.CanvasSize = UDim2.new(0,0,0,0)
-    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.Active = true
+    page.ScrollingEnabled = true
+    page.ScrollingDirection = Enum.ScrollingDirection.Y
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.None
     page.Visible = false
     page.Parent = self.Container
     padding(page, 14)
@@ -895,6 +898,17 @@ function Library:Tab(config)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Parent = page
+
+    -- AutomaticCanvasSize can miss delayed height changes from nested Columns
+    -- and AutomaticSize groups, leaving touch devices with no scroll range even
+    -- though the last card is visibly clipped. Drive the vertical canvas from
+    -- the page's direct layout and include the 14 px top/bottom page padding.
+    local function syncPageCanvas()
+        if not alive(page) or not alive(layout) then return end
+        page.CanvasSize = UDim2.new(0, 0, 0, math.max(0, layout.AbsoluteContentSize.Y + 28))
+    end
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(syncPageCanvas)
+    task.defer(syncPageCanvas)
 
     local dropdownScrollReserve = Instance.new("Frame")
     dropdownScrollReserve.Name = "DropdownScrollReserve"
