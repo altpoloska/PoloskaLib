@@ -151,12 +151,6 @@ local function makeDraggable(frame, handle)
     local startFramePos = nil
     local DRAG_THRESHOLD = 6
 
-    local function renderedScale()
-        local scaleObject = frame:FindFirstChild("ResponsiveScale")
-        local scale = scaleObject and tonumber(scaleObject.Scale) or 1
-        return math.max(scale or 1, 0.01)
-    end
-
     local function clampToViewport(position)
         local camera = workspace.CurrentCamera
         local viewport = camera and camera.ViewportSize
@@ -229,9 +223,11 @@ local function makeDraggable(frame, handle)
         end
         if not state.Moved then return end
 
-        local scale = renderedScale()
-        local deltaX = rawDelta.X / scale
-        local deltaY = rawDelta.Y / scale
+        -- Main's Position offsets live in its parent's unscaled space; the
+        -- UIScale shrinks the frame around its anchor without rescaling that
+        -- space, so screen-pixel drag deltas must be applied 1:1.
+        local deltaX = rawDelta.X
+        local deltaY = rawDelta.Y
         local target = UDim2.new(
             startFramePos.X.Scale, startFramePos.X.Offset + deltaX,
             startFramePos.Y.Scale, startFramePos.Y.Offset + deltaY
@@ -903,15 +899,19 @@ function Library:Tab(config)
     -- and AutomaticSize groups, leaving touch devices with no scroll range even
     -- though the last card is visibly clipped. Drive the vertical canvas from
     -- the page's direct layout and include the 14 px top/bottom page padding.
-    local function syncPageCanvas()
-        if not alive(page) or not alive(layout) then return end
-        -- AbsoluteContentSize is measured in post-UIScale screen pixels, while
-        -- CanvasSize offsets are pre-scale local units. Divide by the rendered
-        -- ResponsiveScale so shrunken mobile windows keep the full scroll range.
+    -- Convert post-UIScale absolute pixel measurements back into the window's
+    -- pre-scale local units. Offsets of Main's descendants are multiplied by
+    -- ResponsiveScale at render time, so absolute values must be divided first.
+    local function windowScale()
         local scaleObject = win and win.ScaleObject
         local scale = (scaleObject and alive(scaleObject) and tonumber(scaleObject.Scale)) or 1
         if scale <= 0 then scale = 1 end
-        page.CanvasSize = UDim2.new(0, 0, 0, math.max(0, layout.AbsoluteContentSize.Y / scale + 28))
+        return scale
+    end
+
+    local function syncPageCanvas()
+        if not alive(page) or not alive(layout) then return end
+        page.CanvasSize = UDim2.new(0, 0, 0, math.max(0, layout.AbsoluteContentSize.Y / windowScale() + 28))
     end
     layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(syncPageCanvas)
     task.defer(syncPageCanvas)
@@ -1183,7 +1183,9 @@ function Library:Tab(config)
 
         local function syncHeight()
             if alive(row) then
-                row.Size = UDim2.new(1, 0, 0, math.max(leftLayout.AbsoluteContentSize.Y, rightLayout.AbsoluteContentSize.Y))
+                -- AbsoluteContentSize is post-UIScale; convert to local units so
+                -- scaled mobile windows don't clip or overlap column content.
+                row.Size = UDim2.new(1, 0, 0, math.max(leftLayout.AbsoluteContentSize.Y, rightLayout.AbsoluteContentSize.Y) / windowScale())
             end
         end
         leftLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(syncHeight)
@@ -1622,9 +1624,12 @@ function Library:Tab(config)
 
         local function positionPopup()
             if not open or not alive(popup) or not alive(f) then return end
+            -- Absolute pixel deltas must be converted into Main's pre-UIScale
+            -- local space, otherwise popups drift on scaled (mobile) windows.
+            local scale = windowScale()
             popup.Position = UDim2.fromOffset(
-                f.AbsolutePosition.X - win.Main.AbsolutePosition.X,
-                f.AbsolutePosition.Y - win.Main.AbsolutePosition.Y + f.AbsoluteSize.Y + 8
+                (f.AbsolutePosition.X - win.Main.AbsolutePosition.X) / scale,
+                (f.AbsolutePosition.Y - win.Main.AbsolutePosition.Y + f.AbsoluteSize.Y) / scale + 8
             )
         end
         table.insert(tab._popupRefreshers, positionPopup)
@@ -1678,7 +1683,7 @@ function Library:Tab(config)
         local function show()
             closeAllPopups()
             local height = math.min(196, (#items * 34) + 12)
-            popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X), height)
+            popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X / windowScale()), height)
             open = true
             setDropdownScrollReserve(height + 28)
             positionPopup()
@@ -1848,9 +1853,12 @@ function Library:Tab(config)
         end
         local function positionPopup()
             if not open or not alive(popup) or not alive(f) then return end
+            -- Absolute pixel deltas must be converted into Main's pre-UIScale
+            -- local space, otherwise popups drift on scaled (mobile) windows.
+            local scale = windowScale()
             popup.Position = UDim2.fromOffset(
-                f.AbsolutePosition.X - win.Main.AbsolutePosition.X,
-                f.AbsolutePosition.Y - win.Main.AbsolutePosition.Y + f.AbsoluteSize.Y + 8
+                (f.AbsolutePosition.X - win.Main.AbsolutePosition.X) / scale,
+                (f.AbsolutePosition.Y - win.Main.AbsolutePosition.Y + f.AbsoluteSize.Y) / scale + 8
             )
         end
         table.insert(tab._popupRefreshers, positionPopup)
@@ -1910,7 +1918,7 @@ function Library:Tab(config)
         local function show()
             closeAllPopups()
             local height = math.min(230, (#items * 34) + 12)
-            popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X), height)
+            popup.Size = UDim2.fromOffset(math.max(180, f.AbsoluteSize.X / windowScale()), height)
             open = true
             setDropdownScrollReserve(height + 28)
             positionPopup()
