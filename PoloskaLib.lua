@@ -905,7 +905,13 @@ function Library:Tab(config)
     -- the page's direct layout and include the 14 px top/bottom page padding.
     local function syncPageCanvas()
         if not alive(page) or not alive(layout) then return end
-        page.CanvasSize = UDim2.new(0, 0, 0, math.max(0, layout.AbsoluteContentSize.Y + 28))
+        -- AbsoluteContentSize is measured in post-UIScale screen pixels, while
+        -- CanvasSize offsets are pre-scale local units. Divide by the rendered
+        -- ResponsiveScale so shrunken mobile windows keep the full scroll range.
+        local scaleObject = win and win.ScaleObject
+        local scale = (scaleObject and alive(scaleObject) and tonumber(scaleObject.Scale)) or 1
+        if scale <= 0 then scale = 1 end
+        page.CanvasSize = UDim2.new(0, 0, 0, math.max(0, layout.AbsoluteContentSize.Y / scale + 28))
     end
     layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(syncPageCanvas)
     task.defer(syncPageCanvas)
