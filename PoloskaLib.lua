@@ -1544,12 +1544,28 @@ function Library:Tab(config)
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = f
 
+        -- Stacked mode renders the value inside a rounded field (same style
+        -- as the Textbox input) instead of a bare floating text line.
+        local fieldBox
+        if stacked then
+            fieldBox = Instance.new("Frame")
+            fieldBox.Name = "FieldBox"
+            fieldBox.Size = UDim2.new(1, -28, 0, 30)
+            fieldBox.Position = UDim2.new(0, 14, 0, 34)
+            fieldBox.BackgroundColor3 = Theme.Background
+            fieldBox.BorderSizePixel = 0
+            fieldBox.ClipsDescendants = true
+            fieldBox.Parent = f
+            corner(fieldBox, 6)
+            stroke(fieldBox, Theme.Stroke, 1)
+        end
+
         local selected = Instance.new("TextLabel")
         selected.Size = stacked
-            and UDim2.new(1, -58, 0, 30)
+            and UDim2.new(1, -40, 1, 0)
             or UDim2.new(0, 150, 1, 0)
         selected.Position = stacked
-            and UDim2.new(0, 14, 0, 34)
+            and UDim2.new(0, 10, 0, 0)
             or UDim2.new(1, -176, 0, 0)
         selected.BackgroundTransparency = 1
         selected.Text = cfg.StartingText or "Select..."
@@ -1558,7 +1574,7 @@ function Library:Tab(config)
         selected.TextSize = 13
         selected.TextTruncate = Enum.TextTruncate.AtEnd
         selected.TextXAlignment = stacked and Enum.TextXAlignment.Left or Enum.TextXAlignment.Right
-        selected.Parent = f
+        selected.Parent = stacked and fieldBox or f
 
         -- Font-independent vector chevron. The old Unicode glyph rendered as
         -- a missing-character square on clients whose Roblox font lacked it.
@@ -1567,11 +1583,11 @@ function Library:Tab(config)
         arrow.Size = UDim2.fromOffset(16, 16)
         arrow.AnchorPoint = Vector2.new(0.5, 0.5)
         arrow.Position = stacked
-            and UDim2.new(1, -17, 0, 49)
+            and UDim2.new(1, -15, 0.5, 0)
             or UDim2.new(1, -17, 0.5, 0)
         arrow.BackgroundTransparency = 1
         arrow.ZIndex = 103
-        arrow.Parent = f
+        arrow.Parent = stacked and fieldBox or f
 
         local arrowLeft = Instance.new("Frame")
         arrowLeft.Size = UDim2.fromOffset(7, 2)
@@ -1765,12 +1781,28 @@ function Library:Tab(config)
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = f
 
+        -- Stacked mode renders the value inside a rounded field (same style
+        -- as the Textbox input) instead of a bare floating text line.
+        local fieldBox
+        if stacked then
+            fieldBox = Instance.new("Frame")
+            fieldBox.Name = "FieldBox"
+            fieldBox.Size = UDim2.new(1, -28, 0, 30)
+            fieldBox.Position = UDim2.new(0, 14, 0, 34)
+            fieldBox.BackgroundColor3 = Theme.Background
+            fieldBox.BorderSizePixel = 0
+            fieldBox.ClipsDescendants = true
+            fieldBox.Parent = f
+            corner(fieldBox, 6)
+            stroke(fieldBox, Theme.Stroke, 1)
+        end
+
         local selected = Instance.new("TextLabel")
         selected.Size = stacked
-            and UDim2.new(1, -58, 0, 30)
+            and UDim2.new(1, -40, 1, 0)
             or UDim2.new(0, 150, 1, 0)
         selected.Position = stacked
-            and UDim2.new(0, 14, 0, 34)
+            and UDim2.new(0, 10, 0, 0)
             or UDim2.new(1, -176, 0, 0)
         selected.BackgroundTransparency = 1
         selected.TextColor3 = Theme.SubText
@@ -1778,7 +1810,7 @@ function Library:Tab(config)
         selected.TextSize = 13
         selected.TextTruncate = Enum.TextTruncate.AtEnd
         selected.TextXAlignment = stacked and Enum.TextXAlignment.Left or Enum.TextXAlignment.Right
-        selected.Parent = f
+        selected.Parent = stacked and fieldBox or f
 
         -- Font-independent vector chevron. The old Unicode glyph rendered as
         -- a missing-character square on clients whose Roblox font lacked it.
@@ -1787,11 +1819,11 @@ function Library:Tab(config)
         arrow.Size = UDim2.fromOffset(16, 16)
         arrow.AnchorPoint = Vector2.new(0.5, 0.5)
         arrow.Position = stacked
-            and UDim2.new(1, -17, 0, 49)
+            and UDim2.new(1, -15, 0.5, 0)
             or UDim2.new(1, -17, 0.5, 0)
         arrow.BackgroundTransparency = 1
         arrow.ZIndex = 103
-        arrow.Parent = f
+        arrow.Parent = stacked and fieldBox or f
 
         local arrowLeft = Instance.new("Frame")
         arrowLeft.Size = UDim2.fromOffset(7, 2)
