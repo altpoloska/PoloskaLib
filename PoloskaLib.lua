@@ -2573,13 +2573,13 @@ function Library:Tab(config)
         popupLayout.Parent = popup
         table.insert(tab._popups, popup)
 
-        local function positionPopup()
+        local popupFlipped = false
+        local function positionPopup(reanchor)
             if not open or not alive(popup) or not alive(f) then return end
-            -- Absolute pixel deltas must be converted into Main's pre-UIScale
-            -- local space, otherwise popups drift on scaled (mobile) windows.
-            -- The popup is anchored once, at the moment it opens. It lives in
-            -- the window overlay, not inside the scrolling page, so it must not
-            -- slide along while the user scrolls the tab.
+            -- Absolute pixel deltas must be converted into the pre-UIScale
+            -- local space of Main, otherwise popups drift on scaled windows.
+            -- The popup lives in the window overlay, so it has to be moved on
+            -- every scroll to stay glued under the field that opened it.
             local scale = windowScale()
             local main = win.Main
             local fieldX = (f.AbsolutePosition.X - main.AbsolutePosition.X) / scale
@@ -2589,22 +2589,32 @@ function Library:Tab(config)
             local mainHeight = main.AbsoluteSize.Y / scale
             local popupWidth = popup.Size.X.Offset
             local popupHeight = popup.Size.Y.Offset
-            -- Keep the floating list inside the window: drop it below the field
-            -- when there is room, otherwise flip it above, and clamp as a last
-            -- resort so it can never be clipped by Main.
+            -- The below/above decision is taken once, when the list opens, so
+            -- the popup never jumps to the other side of the field mid-scroll.
+            if reanchor then
+                local fitsBelow = (fieldY + fieldHeight + 8 + popupHeight) <= (mainHeight - 8)
+                local fitsAbove = (fieldY - popupHeight - 8) >= 8
+                popupFlipped = (not fitsBelow) and fitsAbove
+            end
             local x = math.clamp(fieldX, 8, math.max(8, mainWidth - popupWidth - 8))
-            local y = fieldY + fieldHeight + 8
-            if y + popupHeight > mainHeight - 8 then
-                local above = fieldY - popupHeight - 8
-                if above >= 8 then
-                    y = above
-                else
-                    y = math.max(8, mainHeight - popupHeight - 8)
-                end
+            local y
+            if popupFlipped then
+                y = fieldY - popupHeight - 8
+            else
+                y = fieldY + fieldHeight + 8
             end
             popup.Position = UDim2.fromOffset(x, y)
+            -- Hide the list as soon as its field is scrolled out of the page.
+            if page and alive(page) then
+                local pageTop = (page.AbsolutePosition.Y - main.AbsolutePosition.Y) / scale
+                local pageBottom = pageTop + page.AbsoluteSize.Y / scale
+                popup.Visible = ((fieldY + fieldHeight) > pageTop) and (fieldY < pageBottom)
+            end
         end
         table.insert(tab._popupRefreshers, positionPopup)
+        if alive(f) then
+            f:GetPropertyChangedSignal("AbsolutePosition"):Connect(function() positionPopup() end)
+        end
 
         -- Selection state is drawn on the rows themselves, so an open list
         -- always shows which value is currently active.
@@ -2713,12 +2723,25 @@ function Library:Tab(config)
             closeAllPopups()
             -- Room for eight rows before the list starts scrolling.
             -- An empty list keeps enough room for its placeholder row.
-            local height = math.max(46, math.min((8 * 34) + 12, (#items * 34) + 12))
+            local wanted = math.max(46, math.min((8 * 34) + 12, (#items * 34) + 12))
             local width = math.max(180, f.AbsoluteSize.X / windowScale())
+            -- Downwards is the default direction. The list flips above the
+            -- field only when the space below is too small to be usable;
+            -- otherwise it is trimmed to the free space and scrolls inside.
+            local scale = windowScale()
+            local main = win.Main
+            local fieldY = (f.AbsolutePosition.Y - main.AbsolutePosition.Y) / scale
+            local fieldHeight = f.AbsoluteSize.Y / scale
+            local mainHeight = main.AbsoluteSize.Y / scale
+            local spaceBelow = mainHeight - 16 - (fieldY + fieldHeight)
+            local spaceAbove = fieldY - 16
+            popupFlipped = (spaceBelow < math.min(wanted, 92)) and (spaceAbove > spaceBelow)
+            local room = popupFlipped and spaceAbove or spaceBelow
+            local height = math.max(46, math.min(wanted, math.floor(room)))
             popup.Size = UDim2.fromOffset(width, height)
             open = true
             setDropdownScrollReserve(height + 28)
-            positionPopup()
+            positionPopup(false)
             popup.Visible = true
             -- Grow the overlay out of the field instead of snapping it open.
             popup.Size = UDim2.fromOffset(width, 0)
@@ -2951,13 +2974,13 @@ function Library:Tab(config)
                 selected.TextColor3 = Theme.Text
             end
         end
-        local function positionPopup()
+        local popupFlipped = false
+        local function positionPopup(reanchor)
             if not open or not alive(popup) or not alive(f) then return end
-            -- Absolute pixel deltas must be converted into Main's pre-UIScale
-            -- local space, otherwise popups drift on scaled (mobile) windows.
-            -- The popup is anchored once, at the moment it opens. It lives in
-            -- the window overlay, not inside the scrolling page, so it must not
-            -- slide along while the user scrolls the tab.
+            -- Absolute pixel deltas must be converted into the pre-UIScale
+            -- local space of Main, otherwise popups drift on scaled windows.
+            -- The popup lives in the window overlay, so it has to be moved on
+            -- every scroll to stay glued under the field that opened it.
             local scale = windowScale()
             local main = win.Main
             local fieldX = (f.AbsolutePosition.X - main.AbsolutePosition.X) / scale
@@ -2967,22 +2990,32 @@ function Library:Tab(config)
             local mainHeight = main.AbsoluteSize.Y / scale
             local popupWidth = popup.Size.X.Offset
             local popupHeight = popup.Size.Y.Offset
-            -- Keep the floating list inside the window: drop it below the field
-            -- when there is room, otherwise flip it above, and clamp as a last
-            -- resort so it can never be clipped by Main.
+            -- The below/above decision is taken once, when the list opens, so
+            -- the popup never jumps to the other side of the field mid-scroll.
+            if reanchor then
+                local fitsBelow = (fieldY + fieldHeight + 8 + popupHeight) <= (mainHeight - 8)
+                local fitsAbove = (fieldY - popupHeight - 8) >= 8
+                popupFlipped = (not fitsBelow) and fitsAbove
+            end
             local x = math.clamp(fieldX, 8, math.max(8, mainWidth - popupWidth - 8))
-            local y = fieldY + fieldHeight + 8
-            if y + popupHeight > mainHeight - 8 then
-                local above = fieldY - popupHeight - 8
-                if above >= 8 then
-                    y = above
-                else
-                    y = math.max(8, mainHeight - popupHeight - 8)
-                end
+            local y
+            if popupFlipped then
+                y = fieldY - popupHeight - 8
+            else
+                y = fieldY + fieldHeight + 8
             end
             popup.Position = UDim2.fromOffset(x, y)
+            -- Hide the list as soon as its field is scrolled out of the page.
+            if page and alive(page) then
+                local pageTop = (page.AbsolutePosition.Y - main.AbsolutePosition.Y) / scale
+                local pageBottom = pageTop + page.AbsoluteSize.Y / scale
+                popup.Visible = ((fieldY + fieldHeight) > pageTop) and (fieldY < pageBottom)
+            end
         end
         table.insert(tab._popupRefreshers, positionPopup)
+        if alive(f) then
+            f:GetPropertyChangedSignal("AbsolutePosition"):Connect(function() positionPopup() end)
+        end
 
         local function close()
             open = false
@@ -3121,12 +3154,25 @@ function Library:Tab(config)
             closeAllPopups()
             -- Room for eight rows before the list starts scrolling.
             -- An empty list keeps enough room for its placeholder row.
-            local height = math.max(46, math.min((8 * 34) + 12, (#items * 34) + 12))
+            local wanted = math.max(46, math.min((8 * 34) + 12, (#items * 34) + 12))
             local width = math.max(180, f.AbsoluteSize.X / windowScale())
+            -- Downwards is the default direction. The list flips above the
+            -- field only when the space below is too small to be usable;
+            -- otherwise it is trimmed to the free space and scrolls inside.
+            local scale = windowScale()
+            local main = win.Main
+            local fieldY = (f.AbsolutePosition.Y - main.AbsolutePosition.Y) / scale
+            local fieldHeight = f.AbsoluteSize.Y / scale
+            local mainHeight = main.AbsoluteSize.Y / scale
+            local spaceBelow = mainHeight - 16 - (fieldY + fieldHeight)
+            local spaceAbove = fieldY - 16
+            popupFlipped = (spaceBelow < math.min(wanted, 92)) and (spaceAbove > spaceBelow)
+            local room = popupFlipped and spaceAbove or spaceBelow
+            local height = math.max(46, math.min(wanted, math.floor(room)))
             popup.Size = UDim2.fromOffset(width, height)
             open = true
             setDropdownScrollReserve(height + 28)
-            positionPopup()
+            positionPopup(false)
             popup.Visible = true
             -- Grow the overlay out of the field instead of snapping it open.
             popup.Size = UDim2.fromOffset(width, 0)
