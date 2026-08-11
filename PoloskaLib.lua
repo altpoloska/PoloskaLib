@@ -713,7 +713,22 @@ function Library:Create(config)
     topAccent.BorderSizePixel = 0
     topAccent.ZIndex = 4
     topAccent.Parent = topbar
-    gradient(topAccent, Theme.Accent, Theme.AccentViolet, 0, 0.1, 1)
+    local topAccentGradient = gradient(topAccent, Theme.Accent, Theme.AccentViolet, 0, 0.1, 1)
+    -- The header accent slowly "breathes": one long-lived shimmer glides across
+    -- the gradient offset and back, so the title bar never reads as a static
+    -- stripe. tween() already guards against a destroyed UIGradient, and the
+    -- alive() check ends the thread once the window closes.
+    task.spawn(function()
+        while alive(topAccentGradient) do
+            tween(topAccentGradient, 3.4, { Offset = Vector2.new(-1, -0.5) },
+                Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(3.4)
+            if not alive(topAccentGradient) then break end
+            tween(topAccentGradient, 3.4, { Offset = Vector2.new(1, 0) },
+                Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+            task.wait(3.4)
+        end
+    end)
 
     -- Touch devices get noticeably bigger hit targets in the header.
     local iconSize = UserInputService.TouchEnabled and 34 or 28
@@ -1497,6 +1512,14 @@ function Library:Tab(config)
     btn.Parent = self.TabList
     corner(btn, Radius.Control)
 
+    -- Soft accent edge on the ACTIVE tab, so the whole button reads as
+    -- "selected", not just the mark in front of it. Theme-bound through the
+    -- shared binder so a palette switch repaints it like every other control.
+    local tabStroke = stroke(btn, Theme.Accent, 1)
+    tabStroke.Transparency = 1
+    bind(tabStroke, "Color", "Accent")
+    tab.TabButtonStroke = tabStroke
+
     -- Per-tab accent indicator. It grows in on activation and collapses on the
     -- previous tab, which reads as the selection moving between tabs without
     -- any absolute-position math that could fight the scrolling tab list.
@@ -1802,6 +1825,9 @@ function Library:Tab(config)
                 t.TabButton.BackgroundColor3 = Theme.Element
                 t.TabButton.TextColor3 = Theme.SubText
             end
+            if t.TabButtonStroke and alive(t.TabButtonStroke) then
+                t.TabButtonStroke.Transparency = 1
+            end
             if t.TabMark and alive(t.TabMark) then
                 tween(t.TabMark, Motion.Base, { Size = UDim2.fromOffset(3, 0) })
             end
@@ -1811,6 +1837,7 @@ function Library:Tab(config)
         btn.BackgroundTransparency = 0
         btn.BackgroundColor3 = Theme.ElementHover
         btn.TextColor3 = Theme.Text
+        if alive(tabStroke) then tabStroke.Transparency = 0.4 end
         if alive(mark) then
             mark.Size = UDim2.fromOffset(3, 0)
             tween(mark, 0.3, { Size = UDim2.fromOffset(3, 18) }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
@@ -3244,9 +3271,13 @@ function Library:Tab(config)
         local key = cfg.Keybind
         local binding = false
         local f = baseElement(40)
+        -- A bound key can be long ("RightControl"), and the fixed 78px cap
+        -- truncated it mid-name. The width is per-control configurable and
+        -- defaults a bit wider; the label reserve follows the same value.
+        local keycapWidth = tonumber(cfg.KeycapWidth) or 94
 
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -100, 1, 0)
+        label.Size = UDim2.new(1, -(keycapWidth + 22), 1, 0)
         label.Position = UDim2.new(0, 14, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = cfg.Name or "Keybind"
@@ -3261,13 +3292,16 @@ function Library:Tab(config)
         -- own outline and a soft shadow, so it reads as a key and not as text.
         local kb = Instance.new("TextButton")
         kb.Name = "KeyCap"
-        kb.Size = UDim2.fromOffset(78, 28)
-        kb.Position = UDim2.new(1, -92, 0.5, 0)
+        kb.Size = UDim2.fromOffset(keycapWidth, 28)
+        kb.Position = UDim2.new(1, -(keycapWidth + 14), 0.5, 0)
         kb.AnchorPoint = Vector2.new(0, 0.5)
         kb.BackgroundColor3 = Theme.Background
         kb.BorderSizePixel = 0
         kb.Text = key and key.Name or "None"
-        kb.TextColor3 = key and Theme.Text or Theme.SubText
+        -- Bound key text stays in the muted palette so the cap reads as part
+        -- of the UI instead of a bright white chip; the cap itself and the
+        -- key name still tell a bound key from "None".
+        kb.TextColor3 = Theme.SubText
         kb.Font = Enum.Font.Code
         kb.TextSize = Type.Label.Size
         kb.TextTruncate = Enum.TextTruncate.AtEnd
@@ -3294,7 +3328,7 @@ function Library:Tab(config)
                 tween(kb, Motion.Fast, { BackgroundColor3 = Theme.ElementHover })
             else
                 kb.Text = key and key.Name or "None"
-                kb.TextColor3 = key and Theme.Text or Theme.SubText
+                kb.TextColor3 = Theme.SubText
                 kbStroke.Color = Theme.Stroke
                 kbStroke.Transparency = 0.25
                 tween(kb, Motion.Fast, { BackgroundColor3 = Theme.Background })
