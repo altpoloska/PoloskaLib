@@ -3628,7 +3628,7 @@ function Library:Tab(config)
         l:GetPropertyChangedSignal("Text"):Connect(syncRule)
         row:GetPropertyChangedSignal("AbsoluteSize"):Connect(syncRule)
         syncRule()
-
+        -- //
         return l
     end
 
