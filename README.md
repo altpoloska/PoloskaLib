@@ -1,14 +1,6 @@
 # PoloskaLib v2
 
-Minimal, self-contained Roblox Luau UI library (`v2.0.0`) designed to be loaded directly from a single file.
-
-## Features
-
-- **6 built-in themes** (`Poloska`, `Obsidian`, `Standout Crimson`, `Midnight Violet`, `Classic Dark`, `Light`) with WCAG-checked `OnAccent` and `MutedText` contrast tokens.
-- **Responsive `UIScale` & CoreGui TopBar protection:** viewport-clamped dragging and launcher positioning using `GuiService:GetGuiInset()`, automatic canvas sync on resize / scale / minimize restore.
-- **Strict `ZIndexBehavior.Global` layers:** `Backdrop (0) < Content (2..15) < Chrome (20..30) < Launcher (50) < Popup (200) < Notification (300) < Dialog (400)`.
-- **Controls:** `Section`, `Metrics`, `Button`, `ButtonRow` (2–3 compact equal-width buttons), `Toggle`, `Slider` (editable), `Dropdown` (`Searchable`, `Stacked`, `Value`/`Default`, `OnOpen`, `:Refresh`), `Textbox`, `Keybind` (`Escape` cancel, `ToggleKey` capture guard, optional `AllowClear`).
-- **Overlays:** Toast notifications (max 4 stacked, synchronized fade, `window:SetNotificationsEnabled`), modal `Confirm` dialogs, and topbar search with collapsed-group auto-expand.
+Minimal, self-contained Roblox Luau UI library (`v2.0.0`). Load `PoloskaLib.lua` directly by URL or edit modules in `src/` and rebuild with zero external tools.
 
 ## Usage
 
@@ -40,4 +32,20 @@ group:ButtonRow({
 	{ Title = "Run", Style = "primary", Callback = function() end },
 	{ Title = "Reset", Style = "danger", Callback = function() end },
 })
+```
+
+## Features
+
+- **6 built-in themes** (`Poloska`, `Obsidian`, `Standout Crimson`, `Midnight Violet`, `Classic Dark`, `Light`) with WCAG-checked `OnAccent` and `MutedText` contrast tokens.
+- **Responsive `UIScale` & CoreGui TopBar protection:** viewport-clamped dragging and launcher positioning using `GuiService:GetGuiInset()`, automatic canvas sync on resize / scale / minimize restore.
+- **Strict `ZIndexBehavior.Global` layers:** `Backdrop (0) < Content (2..15) < Chrome (20..30) < Launcher (50) < Popup (200) < Notification (300) < Dialog (400)`.
+- **Controls:** `Section`, `Metrics`, `Button`, `ButtonRow`, `Toggle`, `Slider`, `Dropdown` (`Searchable`, `Stacked`, `Value`/`Default`, `OnOpen`, `:Refresh`), `Textbox`, `Keybind` (`Escape` cancel, `ToggleKey` capture guard, optional `AllowClear`).
+- **Overlays:** Toast notifications (max 4 stacked, synchronized fade, `window:SetNotificationsEnabled`), modal `Confirm` dialogs, and topbar search with collapsed-group auto-expand.
+
+## Build from Modules (No External Tools)
+
+Edit any module in `src/*.luau` and rebuild `PoloskaLib.lua` with stock Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
